@@ -136,6 +136,10 @@ RSpec.describe Interactor::Validation, "coverage enhancement" do
           configure_validation do |config|
             config.error_mode = :default
           end
+
+          def self.model_name
+            ActiveModel::Name.new(self, nil, "TestInteractor")
+          end
         end
       end
 

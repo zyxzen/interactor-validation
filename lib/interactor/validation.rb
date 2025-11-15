@@ -38,14 +38,18 @@ module Interactor
 
     def self.included(base)
       super
-      # Set up the validation hook after all modules are included
+      # Set up the validation hooks after all modules are included
       # Use class_eval to ensure we're in the right context
       base.class_eval do
+        # Register both validate! and validate_params! hooks
+        # We override validate! to prevent ActiveModel's exception-raising behavior
+        before :validate! if respond_to?(:before)
         before :validate_params! if respond_to?(:before)
 
-        # Set up inherited hook to ensure child classes also get the before hook
+        # Set up inherited hook to ensure child classes also get the before hooks
         def self.inherited(subclass)
           super
+          subclass.before :validate! if subclass.respond_to?(:before)
           subclass.before :validate_params! if subclass.respond_to?(:before)
         end
       end

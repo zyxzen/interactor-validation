@@ -21,9 +21,11 @@ module Interactor
 
       def self.included(base)
         super
-        # Include ActiveModel::Validations first, then prepend our override
+        # Include ActiveModel::Validations first, then prepend our overrides
         base.include ActiveModel::Validations unless base.included_modules.include?(ActiveModel::Validations)
         base.singleton_class.prepend(ClassMethodsOverride)
+        # Prepend our instance method overrides to take precedence over ActiveModel
+        base.prepend(InstanceMethodsOverride)
       end
 
       module ClassMethodsOverride
@@ -88,6 +90,23 @@ module Interactor
         end
       end
 
+      # Module prepended to override ActiveModel instance methods
+      module InstanceMethodsOverride
+        # Override ActiveModel's validate! to prevent exception-raising behavior
+        # This hook is called automatically before validate_params!
+        # Users can override this to add custom validation logic
+        # @return [void]
+        # @example
+        #   def validate!
+        #     super  # Call parent implementation if needed
+        #     errors.add(:base, "Custom error") if some_condition?
+        #   end
+        def validate!
+          # Empty implementation - override in subclasses for custom validation
+          # This overrides ActiveModel::Validations#validate! which raises exceptions
+        end
+      end
+
       private
 
       # Validates all declared parameters before execution
@@ -99,11 +118,43 @@ module Interactor
 
         # Instrument validation if enabled
         instrument("validate_params.interactor_validation") do
+          # Preserve any errors added by the validate! hook before calling valid?
+          # since valid? clears the errors object
+          existing_error_details = errors.map do |error|
+            begin
+              { attribute: error.attribute, type: error.type, options: error.options }
+            rescue ArgumentError => e
+              # For anonymous classes, accessing error properties may fail
+              if e.message.include?("Class name cannot be blank")
+                { attribute: error.attribute, type: :invalid, options: {} }
+              else
+                raise
+              end
+            end
+          end
+
           # Trigger ActiveModel validations first (validate callbacks)
           # This runs any custom validations defined with validate :method_name
-          # NOTE: valid? must be called BEFORE adding our custom errors
-          # because it clears the errors object
-          valid?
+          # NOTE: valid? clears the errors object, so we need to restore existing_errors
+          begin
+            valid?
+          rescue ArgumentError => e
+            # For anonymous classes, valid? may fail when generating messages
+            raise unless e.message.include?("Class name cannot be blank")
+          end
+
+          # Restore errors from validate! hook
+          existing_error_details.each do |error_detail|
+            begin
+              errors.add(error_detail[:attribute], error_detail[:type], **error_detail[:options])
+            rescue ArgumentError => e
+              # For anonymous classes, fall back to adding with message directly
+              raise unless e.message.include?("Class name cannot be blank")
+
+              message = error_detail[:options][:message] || error_detail[:type].to_s
+              errors.add(error_detail[:attribute], message)
+            end
+          end
 
           # Run our custom param validations after ActiveModel validations
           self.class._param_validations.each do |param_name, rules|
@@ -672,7 +723,15 @@ module Interactor
           "#{attribute_name} #{error_message}"
         elsif error.respond_to?(:message)
           # Try to use ActiveModel's message for simple attributes
-          error.message
+          message = error.message
+          # If translation is missing, fall back to our default messages
+          if message.include?("Translation missing")
+            attribute_name = error.attribute.to_s.humanize
+            error_message = error.options[:message] || default_message_for_type(error.type, error.options)
+            "#{attribute_name} #{error_message}"
+          else
+            message
+          end
         end
       rescue ArgumentError, NoMethodError
         # Fallback for anonymous classes or other issues

@@ -41,6 +41,10 @@ RSpec.describe Interactor::Validation, "edge cases" do
         # This should delegate to ActiveModel's validates
         validate :check_user
 
+        def self.model_name
+          ActiveModel::Name.new(self, nil, "TestInteractor")
+        end
+
         def check_user
           errors.add(:user, "CUSTOM_ERROR") if user.nil?
         end

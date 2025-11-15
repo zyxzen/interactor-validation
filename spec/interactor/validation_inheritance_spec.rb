@@ -206,4 +206,114 @@ RSpec.describe Interactor::Validation, "inheritance" do
                                            ])
     end
   end
+
+  describe "validate! hook" do
+    let(:base_interactor) do
+      Class.new do
+        include Interactor
+        include Interactor::Validation
+      end
+    end
+
+    it "calls validate! hook automatically" do
+      test_interactor = Class.new(base_interactor) do
+        @validate_hook_called = false
+
+        class << self
+          attr_accessor :validate_hook_called
+        end
+
+        def validate!
+          self.class.validate_hook_called = true
+        end
+      end
+
+      test_interactor.call
+
+      expect(test_interactor.validate_hook_called).to be true
+    end
+
+    it "calls validate! before validate_params!" do
+      call_order = []
+
+      test_interactor = Class.new(base_interactor) do
+        configure_validation do |config|
+          config.error_mode = :code
+        end
+
+        params :username
+        validates :username, presence: true
+
+        define_method(:validate!) do
+          call_order << :validate!
+          super()
+        end
+
+        define_method(:validate_params!) do
+          call_order << :validate_params!
+          super()
+        end
+      end
+
+      test_interactor.call(username: "john")
+
+      expect(call_order).to eq(%i[validate! validate_params!])
+    end
+
+    it "allows validate! to add custom errors" do
+      test_interactor = Class.new(base_interactor) do
+        configure_validation do |config|
+          config.error_mode = :code
+        end
+
+        def validate!
+          errors.add(:custom_field, "CUSTOM_ERROR")
+        end
+      end
+
+      result = test_interactor.call
+
+      expect(result).to be_failure
+      expect(result.errors).to include({ code: "CUSTOM_FIELD_CUSTOM_ERROR" })
+    end
+
+    it "fails the interactor when validate! adds errors" do
+      test_interactor = Class.new(base_interactor) do
+        configure_validation do |config|
+          config.error_mode = :code
+        end
+
+        def validate!
+          errors.add(:base, "VALIDATION_FAILED")
+        end
+
+        def call
+          context.call_executed = true
+        end
+      end
+
+      result = test_interactor.call
+
+      expect(result).to be_failure
+      expect(result.call_executed).to be_nil
+    end
+
+    it "works with child classes" do
+      child_interactor = Class.new(base_interactor) do
+        @validate_hook_called = false
+
+        class << self
+          attr_accessor :validate_hook_called
+        end
+
+        def validate!
+          self.class.validate_hook_called = true
+        end
+      end
+
+      child_interactor.call
+
+      expect(child_interactor.validate_hook_called).to be true
+    end
+  end
 end
