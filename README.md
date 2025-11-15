@@ -165,7 +165,11 @@ Configure behavior for all interactors:
 ```ruby
 # config/initializers/interactor_validation.rb
 Interactor::Validation.configure do |config|
-  # Error format: :default (ActiveModel-style) or :code (structured codes)
+  # Error format mode - Available options:
+  #   :default - ActiveModel-style messages (default)
+  #              { attribute: :email, type: :blank, message: "Email can't be blank" }
+  #   :code    - Structured error codes for APIs
+  #              { code: "EMAIL_IS_REQUIRED" }
   config.error_mode = :default
 
   # Stop at first error for better performance
