@@ -8,34 +8,40 @@ Add declarative parameter validation to your [Interactor](https://github.com/col
 gem "interactor-validation"
 ```
 
-## Quick Start
+## Quick Example
 
 ```ruby
 class CreateUser
   include Interactor
   include Interactor::Validation
 
-  params :email, :username, :age
+  # Declare parameters
+  params :email, :username
 
-  validates :email, presence: true, format: { with: URI::MailTo::EMAIL_REGEXP }
-  validates :username, presence: true, length: { minimum: 3, maximum: 20 }
-  validates :age, numericality: { greater_than: 0, less_than: 150 }
+  # Add validations
+  validates :email, presence: true, format: { with: /@/ }
+  validates :username, presence: true, length: { minimum: 3 }
 
   def call
-    user = User.create!(email: email, username: username, age: age)
-    context.user = user
+    # Validations run automatically before this
+    User.create!(email: email, username: username)
   end
 end
 
-# Validation runs automatically before call
-result = CreateUser.call(email: "", username: "ab", age: -5)
+# Use it
+result = CreateUser.call(email: "user@example.com", username: "john")
+result.success? # => true
+
+# Invalid data fails automatically
+result = CreateUser.call(email: "invalid", username: "ab")
 result.failure? # => true
 result.errors   # => [
-                #      { attribute: :email, type: :blank, message: "Email can't be blank" },
-                #      { attribute: :username, type: :too_short, message: "Username is too short (minimum is 3 characters)" },
-                #      { attribute: :age, type: :greater_than, message: "Age must be greater than 0" }
+                #      { attribute: :email, type: :invalid, message: "Email is invalid" },
+                #      { attribute: :username, type: :too_short, message: "Username is too short (minimum is 3 characters)" }
                 #    ]
 ```
+
+---
 
 ## Validation Types
 
@@ -334,3 +340,942 @@ MIT License - see [LICENSE.txt](LICENSE.txt)
 ## Contributing
 
 Issues and pull requests are welcome at [https://github.com/zyxzen/interactor-validation](https://github.com/zyxzen/interactor-validation)
+
+---
+
+# Detailed Documentation
+
+## Custom Validation Hook
+
+Use the `validate!` hook to add custom validation logic that goes beyond standard validations.
+
+### Basic Usage
+
+The `validate!` method runs automatically after parameter validations:
+
+```ruby
+class CreateOrder
+  include Interactor
+  include Interactor::Validation
+
+  params :product_id, :quantity, :user_id
+
+  validates :product_id, presence: true
+  validates :quantity, numericality: { greater_than: 0 }
+  validates :user_id, presence: true
+
+  def validate!
+    # Custom business logic validation
+    product = Product.find_by(id: product_id)
+
+    if product.nil?
+      errors.add(:product_id, "PRODUCT_NOT_FOUND")
+    elsif product.stock < quantity
+      errors.add(:quantity, "INSUFFICIENT_STOCK")
+    end
+
+    user = User.find_by(id: user_id)
+    if user && !user.active?
+      errors.add(:user_id, "USER_NOT_ACTIVE")
+    end
+  end
+
+  def call
+    # This only runs if all validations pass
+    Order.create!(product_id: product_id, quantity: quantity, user_id: user_id)
+  end
+end
+
+# Usage
+result = CreateOrder.call(product_id: 999, quantity: 100, user_id: 1)
+result.failure? # => true
+result.errors   # => [{ code: "PRODUCT_ID_PRODUCT_NOT_FOUND" }]
+```
+
+### Execution Order
+
+Validations run in this order:
+
+1. **Parameter validations** (`validates :field, ...`)
+2. **Custom validate! hook** (your custom logic)
+3. **call method** (only if no errors)
+
+```ruby
+class ProcessPayment
+  include Interactor
+  include Interactor::Validation
+
+  params :amount, :card_token
+
+  validates :amount, numericality: { greater_than: 0 }
+  validates :card_token, presence: true
+
+  def validate!
+    # This runs AFTER parameter validations pass
+    # Check payment gateway availability
+    errors.add(:base, "PAYMENT_GATEWAY_UNAVAILABLE") unless PaymentGateway.available?
+  end
+
+  def call
+    # This only runs if both parameter validations AND validate! pass
+    PaymentGateway.charge(amount: amount, token: card_token)
+  end
+end
+```
+
+### Combining with Error Modes
+
+Works with both `:default` and `:code` error modes:
+
+```ruby
+# With :default mode (ActiveModel-style messages)
+class UpdateProfile
+  include Interactor
+  include Interactor::Validation
+
+  params :username, :bio
+
+  validates :username, presence: true
+
+  def validate!
+    if username && username.include?("admin")
+      errors.add(:username, "cannot contain 'admin'")
+    end
+  end
+end
+
+result = UpdateProfile.call(username: "admin123")
+result.errors # => [{ attribute: :username, type: :invalid, message: "Username cannot contain 'admin'" }]
+
+# With :code mode (structured error codes)
+class UpdateProfile
+  include Interactor
+  include Interactor::Validation
+
+  configure_validation do |config|
+    config.error_mode = :code
+  end
+
+  params :username, :bio
+
+  validates :username, presence: true
+
+  def validate!
+    if username && username.include?("admin")
+      errors.add(:username, "RESERVED_WORD")
+    end
+  end
+end
+
+result = UpdateProfile.call(username: "admin123")
+result.errors # => [{ code: "USERNAME_RESERVED_WORD" }]
+```
+
+## Inheritance
+
+Create base interactors with shared validation logic that child classes automatically inherit.
+
+### Basic Inheritance
+
+```ruby
+# Base interactor with common functionality
+class ApplicationInteractor
+  include Interactor
+  include Interactor::Validation
+
+  # All child classes will inherit validation functionality
+end
+
+# Child interactor automatically gets validation
+class CreateUser < ApplicationInteractor
+  params :email, :username
+
+  validates :email, presence: true, format: { with: /@/ }
+  validates :username, presence: true
+
+  def call
+    User.create!(email: email, username: username)
+  end
+end
+
+# Another child interactor
+class UpdateUser < ApplicationInteractor
+  params :user_id, :email
+
+  validates :user_id, presence: true
+  validates :email, format: { with: /@/ }
+
+  def call
+    User.find(user_id).update!(email: email)
+  end
+end
+
+# Both work automatically
+CreateUser.call(email: "user@example.com", username: "john") # => success
+UpdateUser.call(user_id: 1, email: "invalid") # => failure with validation errors
+```
+
+### Shared Validation Configuration
+
+Configure validation behavior in the base class:
+
+```ruby
+class ApiInteractor
+  include Interactor
+  include Interactor::Validation
+
+  configure_validation do |config|
+    config.error_mode = :code  # All child classes use code mode
+    config.halt_on_first_error = true
+  end
+end
+
+class CreatePost < ApiInteractor
+  params :title, :body
+
+  validates :title, presence: true
+  validates :body, presence: true
+
+  def call
+    Post.create!(title: title, body: body)
+  end
+end
+
+result = CreatePost.call(title: "", body: "")
+result.errors # => [{ code: "TITLE_IS_REQUIRED" }]  # Halted on first error
+```
+
+### Shared Custom Validations
+
+Define common validation logic in the base class:
+
+```ruby
+class AuthenticatedInteractor
+  include Interactor
+  include Interactor::Validation
+
+  params :user_id
+
+  validates :user_id, presence: true
+
+  def validate!
+    # This validation runs for ALL child classes
+    user = User.find_by(id: user_id)
+
+    if user.nil?
+      errors.add(:user_id, "USER_NOT_FOUND")
+    elsif !user.active?
+      errors.add(:user_id, "USER_INACTIVE")
+    end
+  end
+end
+
+class UpdateSettings < AuthenticatedInteractor
+  params :user_id, :theme
+
+  validates :theme, inclusion: { in: %w[light dark] }
+
+  def call
+    # user_id is already validated by parent
+    User.find(user_id).update!(theme: theme)
+  end
+end
+
+class DeleteAccount < AuthenticatedInteractor
+  params :user_id, :confirmation
+
+  validates :confirmation, presence: true
+
+  def validate!
+    super  # Call parent's validate! first
+
+    # Add additional validation
+    if confirmation != "DELETE"
+      errors.add(:confirmation, "INVALID_CONFIRMATION")
+    end
+  end
+
+  def call
+    User.find(user_id).destroy!
+  end
+end
+```
+
+### Multilevel Inheritance
+
+Validation works across multiple inheritance levels:
+
+```ruby
+# Level 1: Base
+class ApplicationInteractor
+  include Interactor
+  include Interactor::Validation
+end
+
+# Level 2: Feature-specific base
+class AdminInteractor < ApplicationInteractor
+  params :admin_id
+
+  validates :admin_id, presence: true
+
+  def validate!
+    admin = Admin.find_by(id: admin_id)
+    errors.add(:admin_id, "NOT_AN_ADMIN") if admin.nil?
+  end
+end
+
+# Level 3: Specific action
+class BanUser < AdminInteractor
+  params :admin_id, :target_user_id, :reason
+
+  validates :target_user_id, presence: true
+  validates :reason, presence: true, length: { minimum: 10 }
+
+  def validate!
+    super  # Validates admin_id
+
+    # Additional validation
+    target = User.find_by(id: target_user_id)
+    errors.add(:target_user_id, "USER_NOT_FOUND") if target.nil?
+  end
+
+  def call
+    User.find(target_user_id).ban!(reason: reason, banned_by: admin_id)
+  end
+end
+
+# All three levels of validation run automatically
+result = BanUser.call(admin_id: 1, target_user_id: 999, reason: "Spam")
+# Validates: admin_id presence, admin exists, target_user_id presence, target exists, reason presence/length
+```
+
+### Override Parent Configuration
+
+Child classes can override parent configuration:
+
+```ruby
+class BaseInteractor
+  include Interactor
+  include Interactor::Validation
+
+  configure_validation do |config|
+    config.error_mode = :default
+  end
+end
+
+class ApiCreateUser < BaseInteractor
+  # Override to use code mode for API
+  configure_validation do |config|
+    config.error_mode = :code
+  end
+
+  params :email
+
+  validates :email, presence: true
+
+  def call
+    User.create!(email: email)
+  end
+end
+
+result = ApiCreateUser.call(email: "")
+result.errors # => [{ code: "EMAIL_IS_REQUIRED" }]  # Uses :code mode, not :default
+```
+
+## Complete Usage Examples
+
+### All Validation Types
+
+```ruby
+class CompleteExample
+  include Interactor
+  include Interactor::Validation
+
+  params :name, :email, :password, :age, :status, :terms, :profile, :tags
+
+  # Presence validation
+  validates :name, presence: true
+  # Error: { attribute: :name, type: :blank, message: "Name can't be blank" }
+
+  # Format validation (regex)
+  validates :email, format: { with: /\A[\w+\-.]+@[a-z\d\-]+(\.[a-z\d\-]+)*\.[a-z]+\z/i }
+  # Error: { attribute: :email, type: :invalid, message: "Email is invalid" }
+
+  # Length validations
+  validates :password, length: { minimum: 8, maximum: 128 }
+  # Errors: { attribute: :password, type: :too_short, message: "Password is too short (minimum is 8 characters)" }
+  #         { attribute: :password, type: :too_long, message: "Password is too long (maximum is 128 characters)" }
+
+  validates :name, length: { is: 10 }
+  # Error: { attribute: :name, type: :wrong_length, message: "Name is the wrong length (should be 10 characters)" }
+
+  # Numericality validations
+  validates :age,
+    numericality: {
+      greater_than: 0,
+      less_than: 150,
+      greater_than_or_equal_to: 18,
+      less_than_or_equal_to: 100,
+      equal_to: 25  # Exact value
+    }
+  # Errors: { attribute: :age, type: :greater_than, message: "Age must be greater than 0" }
+  #         { attribute: :age, type: :less_than, message: "Age must be less than 150" }
+  #         { attribute: :age, type: :greater_than_or_equal_to, message: "Age must be greater than or equal to 18" }
+  #         { attribute: :age, type: :less_than_or_equal_to, message: "Age must be less than or equal to 100" }
+  #         { attribute: :age, type: :equal_to, message: "Age must be equal to 25" }
+
+  # Inclusion validation
+  validates :status, inclusion: { in: %w[active pending inactive suspended] }
+  # Error: { attribute: :status, type: :inclusion, message: "Status is not included in the list" }
+
+  # Boolean validation
+  validates :terms, boolean: true
+  # Ensures value is exactly true or false (not truthy/falsy)
+
+  # Nested hash validation
+  validates :profile do
+    attribute :username, presence: true, length: { minimum: 3 }
+    attribute :bio, length: { maximum: 500 }
+    attribute :age, numericality: { greater_than: 0 }
+  end
+
+  # Nested array validation
+  validates :tags do
+    attribute :name, presence: true
+    attribute :priority, numericality: { greater_than_or_equal_to: 0 }
+  end
+
+  def call
+    # Your logic here
+  end
+end
+```
+
+### Custom Error Messages
+
+```ruby
+class CustomMessages
+  include Interactor
+  include Interactor::Validation
+
+  params :username, :email, :age
+
+  # Custom message for presence
+  validates :username, presence: { message: "Please provide a username" }
+
+  # Custom message for format
+  validates :email, format: { with: /@/, message: "Must be a valid email address" }
+
+  # Custom message for numericality
+  validates :age, numericality: { greater_than: 0, message: "Age must be positive" }
+
+  def call
+    # Your logic
+  end
+end
+
+# With :default mode
+result = CustomMessages.call(username: "", email: "invalid", age: -5)
+result.errors # => [
+              #      { attribute: :username, type: :blank, message: "Username please provide a username" },
+              #      { attribute: :email, type: :invalid, message: "Email must be a valid email address" },
+              #      { attribute: :age, type: :greater_than, message: "Age age must be positive" }
+              #    ]
+
+# With :code mode
+class CustomMessagesCode
+  include Interactor
+  include Interactor::Validation
+
+  configure_validation { |c| c.error_mode = :code }
+
+  params :username, :age
+
+  validates :username, presence: { message: "REQUIRED" }
+  validates :age, numericality: { greater_than: 0, message: "INVALID" }
+end
+
+result = CustomMessagesCode.call(username: "", age: -5)
+result.errors # => [
+              #      { code: "USERNAME_REQUIRED" },
+              #      { code: "AGE_INVALID" }
+              #    ]
+```
+
+### Error Modes Comparison
+
+```ruby
+class UserRegistration
+  include Interactor
+  include Interactor::Validation
+
+  params :email, :password, :age
+
+  validates :email, presence: true, format: { with: /@/ }
+  validates :password, length: { minimum: 8 }
+  validates :age, numericality: { greater_than_or_equal_to: 18 }
+
+  def call
+    User.create!(email: email, password: password, age: age)
+  end
+end
+
+# Default mode (ActiveModel-style) - human-readable, detailed
+result = UserRegistration.call(email: "bad", password: "short", age: 15)
+result.errors # => [
+              #      { attribute: :email, type: :invalid, message: "Email is invalid" },
+              #      { attribute: :password, type: :too_short, message: "Password is too short (minimum is 8 characters)" },
+              #      { attribute: :age, type: :greater_than_or_equal_to, message: "Age must be greater than or equal to 18" }
+              #    ]
+
+# Code mode - structured, API-friendly, i18n-ready
+class ApiUserRegistration
+  include Interactor
+  include Interactor::Validation
+
+  configure_validation { |c| c.error_mode = :code }
+
+  params :email, :password, :age
+
+  validates :email, presence: true, format: { with: /@/ }
+  validates :password, length: { minimum: 8 }
+  validates :age, numericality: { greater_than_or_equal_to: 18 }
+
+  def call
+    User.create!(email: email, password: password, age: age)
+  end
+end
+
+result = ApiUserRegistration.call(email: "bad", password: "short", age: 15)
+result.errors # => [
+              #      { code: "EMAIL_INVALID_FORMAT" },
+              #      { code: "PASSWORD_BELOW_MIN_LENGTH_8" },
+              #      { code: "AGE_BELOW_MIN_VALUE_18" }
+              #    ]
+```
+
+### Configuration Examples
+
+```ruby
+# Global configuration (config/initializers/interactor_validation.rb)
+Interactor::Validation.configure do |config|
+  # Error format
+  config.error_mode = :code  # or :default
+
+  # Performance
+  config.halt_on_first_error = true  # Stop at first validation error
+
+  # Security
+  config.regex_timeout = 0.1        # 100ms timeout for regex (ReDoS protection)
+  config.max_array_size = 1000      # Max array size for nested validation
+
+  # Optimization
+  config.cache_regex_patterns = true # Cache compiled regex patterns
+
+  # Monitoring
+  config.enable_instrumentation = true
+end
+
+# Per-interactor configuration (overrides global)
+class FastValidator
+  include Interactor
+  include Interactor::Validation
+
+  configure_validation do |config|
+    config.halt_on_first_error = true  # Override global setting
+    config.error_mode = :code
+  end
+
+  params :field1, :field2, :field3
+
+  validates :field1, presence: true
+  validates :field2, presence: true  # Won't run if field1 fails
+  validates :field3, presence: true  # Won't run if earlier fails
+
+  def call
+    # Your logic
+  end
+end
+```
+
+### Nested Validation Examples
+
+```ruby
+# Hash validation
+class CreateUserWithProfile
+  include Interactor
+  include Interactor::Validation
+
+  params :user
+
+  validates :user do
+    attribute :name, presence: true
+    attribute :email, format: { with: /@/ }
+    attribute :age, numericality: { greater_than: 0 }
+    attribute :bio, length: { maximum: 500 }
+  end
+
+  def call
+    User.create!(user)
+  end
+end
+
+# Usage
+result = CreateUserWithProfile.call(
+  user: {
+    name: "",
+    email: "invalid",
+    age: -5,
+    bio: "a" * 600
+  }
+)
+result.errors # => [
+              #      { attribute: "user.name", type: :blank, message: "User.name can't be blank" },
+              #      { attribute: "user.email", type: :invalid, message: "User.email is invalid" },
+              #      { attribute: "user.age", type: :greater_than, message: "User.age must be greater than 0" },
+              #      { attribute: "user.bio", type: :too_long, message: "User.bio is too long (maximum is 500 characters)" }
+              #    ]
+
+# Array validation
+class BulkCreateItems
+  include Interactor
+  include Interactor::Validation
+
+  params :items
+
+  validates :items do
+    attribute :name, presence: true
+    attribute :price, numericality: { greater_than: 0 }
+    attribute :quantity, numericality: { greater_than_or_equal_to: 1 }
+  end
+
+  def call
+    items.each { |item| Item.create!(item) }
+  end
+end
+
+# Usage
+result = BulkCreateItems.call(
+  items: [
+    { name: "Widget", price: 10, quantity: 5 },
+    { name: "", price: -5, quantity: 0 }
+  ]
+)
+result.errors # => [
+              #      { attribute: "items[1].name", type: :blank, message: "Items[1].name can't be blank" },
+              #      { attribute: "items[1].price", type: :greater_than, message: "Items[1].price must be greater than 0" },
+              #      { attribute: "items[1].quantity", type: :greater_than_or_equal_to, message: "Items[1].quantity must be greater than or equal to 1" }
+              #    ]
+```
+
+### ActiveModel Integration
+
+```ruby
+class CustomValidations
+  include Interactor
+  include Interactor::Validation
+
+  params :username, :password, :password_confirmation
+
+  validates :username, presence: true
+  validates :password, presence: true
+
+  # Use ActiveModel's validate callback for complex logic
+  validate :passwords_match
+  validate :username_not_reserved
+
+  private
+
+  def passwords_match
+    if password != password_confirmation
+      errors.add(:password_confirmation, "doesn't match password")
+    end
+  end
+
+  def username_not_reserved
+    reserved = %w[admin root system]
+    if reserved.include?(username&.downcase)
+      errors.add(:username, "is reserved")
+    end
+  end
+end
+
+result = CustomValidations.call(
+  username: "admin",
+  password: "secret123",
+  password_confirmation: "different"
+)
+result.errors # => [
+              #      { attribute: :username, type: :invalid, message: "Username is reserved" },
+              #      { attribute: :password_confirmation, type: :invalid, message: "Password confirmation doesn't match password" }
+              #    ]
+```
+
+### Performance Monitoring
+
+```ruby
+# Enable instrumentation in configuration
+Interactor::Validation.configure do |config|
+  config.enable_instrumentation = true
+end
+
+# Subscribe to validation events
+ActiveSupport::Notifications.subscribe('validate_params.interactor_validation') do |*args|
+  event = ActiveSupport::Notifications::Event.new(*args)
+
+  Rails.logger.info({
+    event: 'validation',
+    interactor: event.payload[:interactor],
+    duration_ms: event.duration,
+    validation_count: event.payload[:validation_count],
+    error_count: event.payload[:error_count],
+    halted: event.payload[:halted]
+  }.to_json)
+end
+
+# Now all validations are instrumented
+class SlowValidation
+  include Interactor
+  include Interactor::Validation
+
+  params :field1, :field2
+
+  validates :field1, presence: true
+  validates :field2, format: { with: /complex.*regex/ }
+
+  def call
+    # Your logic
+  end
+end
+
+# Logs: { "event": "validation", "interactor": "SlowValidation", "duration_ms": 2.5, ... }
+```
+
+### Real-World Example: API Endpoint
+
+```ruby
+# Base API interactor
+class ApiInteractor
+  include Interactor
+  include Interactor::Validation
+
+  configure_validation do |config|
+    config.error_mode = :code
+    config.halt_on_first_error = false  # Return all errors
+  end
+end
+
+# User registration endpoint
+class Api::V1::RegisterUser < ApiInteractor
+  params :email, :password, :password_confirmation, :first_name, :last_name, :terms_accepted
+
+  validates :email,
+    presence: { message: "REQUIRED" },
+    format: { with: URI::MailTo::EMAIL_REGEXP, message: "INVALID_FORMAT" }
+
+  validates :password,
+    presence: { message: "REQUIRED" },
+    length: { minimum: 12, message: "TOO_SHORT" }
+
+  validates :first_name, presence: { message: "REQUIRED" }
+  validates :last_name, presence: { message: "REQUIRED" }
+  validates :terms_accepted, boolean: true
+
+  def validate!
+    # Custom validations
+    if password != password_confirmation
+      errors.add(:password_confirmation, "MISMATCH")
+    end
+
+    if User.exists?(email: email)
+      errors.add(:email, "ALREADY_TAKEN")
+    end
+
+    unless terms_accepted == true
+      errors.add(:terms_accepted, "MUST_ACCEPT")
+    end
+  end
+
+  def call
+    user = User.create!(
+      email: email,
+      password: password,
+      first_name: first_name,
+      last_name: last_name
+    )
+
+    context.user = user
+    context.token = generate_token(user)
+  end
+
+  private
+
+  def generate_token(user)
+    JWT.encode({ user_id: user.id }, Rails.application.secret_key_base)
+  end
+end
+
+# Controller
+class Api::V1::UsersController < ApplicationController
+  def create
+    result = Api::V1::RegisterUser.call(user_params)
+
+    if result.success?
+      render json: {
+        user: result.user,
+        token: result.token
+      }, status: :created
+    else
+      render json: {
+        errors: result.errors
+      }, status: :unprocessable_entity
+    end
+  end
+end
+
+# Example error response:
+# {
+#   "errors": [
+#     { "code": "EMAIL_INVALID_FORMAT" },
+#     { "code": "PASSWORD_TOO_SHORT" },
+#     { "code": "TERMS_ACCEPTED_MUST_ACCEPT" }
+#   ]
+# }
+```
+
+### Real-World Example: Background Job
+
+```ruby
+# Background job with validation
+class ProcessOrderJob
+  include Interactor
+  include Interactor::Validation
+
+  configure_validation do |config|
+    config.error_mode = :code
+  end
+
+  params :order_id, :payment_method, :shipping_address
+
+  validates :order_id, presence: true
+  validates :payment_method, inclusion: { in: %w[credit_card paypal stripe] }
+
+  validates :shipping_address do
+    attribute :street, presence: true
+    attribute :city, presence: true
+    attribute :postal_code, presence: true, format: { with: /\A\d{5}\z/ }
+    attribute :country, inclusion: { in: %w[US CA UK] }
+  end
+
+  def validate!
+    order = Order.find_by(id: order_id)
+
+    if order.nil?
+      errors.add(:order_id, "NOT_FOUND")
+      return
+    end
+
+    if order.processed?
+      errors.add(:order_id, "ALREADY_PROCESSED")
+    end
+
+    if order.total_amount <= 0
+      errors.add(:base, "INVALID_ORDER_AMOUNT")
+    end
+  end
+
+  def call
+    order = Order.find(order_id)
+
+    payment = process_payment(order, payment_method)
+    shipment = create_shipment(order, shipping_address)
+
+    order.update!(
+      status: 'processed',
+      payment_id: payment.id,
+      shipment_id: shipment.id
+    )
+
+    context.order = order
+  end
+end
+
+# Sidekiq job wrapper
+class ProcessOrderWorker
+  include Sidekiq::Worker
+
+  def perform(order_id, payment_method, shipping_address)
+    result = ProcessOrderJob.call(
+      order_id: order_id,
+      payment_method: payment_method,
+      shipping_address: shipping_address
+    )
+
+    unless result.success?
+      # Log errors and retry or alert
+      Rails.logger.error("Order processing failed: #{result.errors}")
+      raise StandardError, "Validation failed: #{result.errors}"
+    end
+  end
+end
+```
+
+### Security Best Practices
+
+```ruby
+# ReDoS protection
+class SecureValidation
+  include Interactor
+  include Interactor::Validation
+
+  configure_validation do |config|
+    config.regex_timeout = 0.05  # 50ms timeout
+  end
+
+  params :input
+
+  # Potentially dangerous regex (nested quantifiers)
+  validates :input, format: { with: /^(a+)+$/ }
+
+  def call
+    # If regex takes > 50ms, validation fails safely
+  end
+end
+
+# Array size protection
+class BulkOperation
+  include Interactor
+  include Interactor::Validation
+
+  configure_validation do |config|
+    config.max_array_size = 100  # Limit to 100 items
+  end
+
+  params :items
+
+  validates :items do
+    attribute :name, presence: true
+  end
+
+  def call
+    # If items.length > 100, validation fails
+    items.each { |item| process(item) }
+  end
+end
+
+# Sanitize error messages before displaying
+class UserInput
+  include Interactor
+  include Interactor::Validation
+
+  params :content
+
+  validates :content, presence: true
+
+  def call
+    # Always sanitize user input
+    sanitized = ActionController::Base.helpers.sanitize(content)
+    Content.create!(body: sanitized)
+  end
+end
+```
