@@ -4,7 +4,8 @@ module Interactor
   module Validation
     # Configuration class for interactor validation behavior
     class Configuration
-      attr_accessor :halt_on_first_error
+      attr_accessor :halt_on_first_error, :regex_timeout, :max_array_size,
+                    :enable_instrumentation, :cache_regex_patterns
       attr_reader :error_mode
 
       # Available error modes:
@@ -13,6 +14,10 @@ module Interactor
       def initialize
         @error_mode = :code
         @halt_on_first_error = false
+        @regex_timeout = 0.1 # 100ms timeout for regex matching (ReDoS protection)
+        @max_array_size = 1000 # Maximum array size for nested validation (memory protection)
+        @enable_instrumentation = false # ActiveSupport::Notifications instrumentation
+        @cache_regex_patterns = true # Cache compiled regex patterns for performance
       end
 
       def error_mode=(mode)

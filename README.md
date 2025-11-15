@@ -139,6 +139,18 @@ Interactor::Validation.configure do |config|
 
   # Stop validation at first error (default: false)
   config.halt_on_first_error = false
+
+  # Security: Regex timeout in seconds (default: 0.1)
+  config.regex_timeout = 0.1
+
+  # Security: Maximum array size for nested validation (default: 1000)
+  config.max_array_size = 1000
+
+  # Performance: Cache compiled regex patterns (default: true)
+  config.cache_regex_patterns = true
+
+  # Monitoring: Enable ActiveSupport::Notifications (default: false)
+  config.enable_instrumentation = false
 end
 ```
 
@@ -218,6 +230,64 @@ class CreateUser
   def check_user_data_structure
     errors.add(:user_data, "must be a Hash") unless user_data.is_a?(Hash)
   end
+end
+```
+
+## Security
+
+This gem includes built-in protection against common security vulnerabilities:
+
+### ReDoS Protection (v0.2.0+)
+
+Regular Expression Denial of Service attacks are prevented with automatic timeouts:
+
+```ruby
+config.regex_timeout = 0.1 # 100ms default timeout
+```
+
+If a regex takes longer than the configured timeout, validation will fail safely instead of hanging.
+
+### Memory Protection (v0.2.0+)
+
+Array validation includes automatic size limits to prevent memory exhaustion:
+
+```ruby
+config.max_array_size = 1000 # Default limit
+```
+
+### Thread Safety (v0.2.0+)
+
+Validation rule registration is thread-safe and can be used safely in multi-threaded environments (Puma, Sidekiq).
+
+### Best Practices
+
+1. **Use simple regex patterns** - Avoid nested quantifiers that can cause backtracking
+2. **Sanitize outputs** - Always escape error messages when rendering in HTML
+3. **Set appropriate limits** - Configure `max_array_size` based on your application needs
+4. **Monitor performance** - Enable instrumentation in production to detect slow validations
+
+For detailed security information, see [SECURITY.md](SECURITY.md).
+
+## Performance
+
+### Benchmarking
+
+Run the included benchmark suite to measure performance:
+
+```bash
+bundle exec ruby benchmark/validation_benchmark.rb
+```
+
+### Monitoring
+
+Enable instrumentation to track validation performance in production:
+
+```ruby
+config.enable_instrumentation = true
+
+ActiveSupport::Notifications.subscribe('validate_params.interactor_validation') do |*args|
+  event = ActiveSupport::Notifications::Event.new(*args)
+  Rails.logger.info "Validation took #{event.duration}ms for #{event.payload[:interactor]}"
 end
 ```
 

@@ -6,6 +6,7 @@ require "active_model"
 
 require_relative "validation/version"
 require_relative "validation/configuration"
+require_relative "validation/error_codes"
 require_relative "validation/params"
 require_relative "validation/validates"
 
