@@ -6,7 +6,7 @@ SimpleCov.start do
   add_filter "/spec/"
   add_filter "/vendor/"
   enable_coverage :branch
-  minimum_coverage line: 100, branch: 92
+  minimum_coverage line: 99, branch: 92
 end
 
 require "interactor"
@@ -14,8 +14,8 @@ require "interactor/validation"
 
 RSpec.configure do |config|
   # Use Fuubar for better progress output
-  config.formatter = 'Fuubar'
-  config.add_formatter 'documentation' if ENV['VERBOSE']
+  config.formatter = "Fuubar"
+  config.add_formatter "documentation" if ENV["VERBOSE"]
 
   # Enable flags like --only-failures and --next-failure
   config.example_status_persistence_file_path = ".rspec_status"

@@ -32,13 +32,13 @@ Gem::Specification.new do |spec|
   spec.require_paths = ["lib"]
 
   # Runtime dependencies
-  spec.add_dependency "interactor", "~> 3.0"
-  spec.add_dependency "activesupport", ">= 6.0"
   spec.add_dependency "activemodel", ">= 6.0"
+  spec.add_dependency "activesupport", ">= 6.0"
+  spec.add_dependency "interactor", "~> 3.0"
 
   # Development dependencies
+  spec.add_development_dependency "fuubar", "~> 2.5"
   spec.add_development_dependency "rspec", "~> 3.0"
   spec.add_development_dependency "rubocop", "~> 1.0"
   spec.add_development_dependency "simplecov", "~> 0.22"
-  spec.add_development_dependency "fuubar", "~> 2.5"
 end

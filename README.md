@@ -95,15 +95,130 @@ validates :quantity, numericality: { greater_than: 0, less_than_or_equal_to: 100
 # Errors: { code: "PRICE_MUST_BE_GREATER_THAN_OR_EQUAL_TO_0" }
 ```
 
-### Error Format
+### Error Formats
 
-Errors follow a consistent format: `PARAM_NAME_ERROR_TYPE` in uppercase.
+The gem supports two error formatting modes:
+
+#### Code Mode (Default)
+
+Returns structured error codes ideal for APIs and i18n:
 
 ```ruby
 result.errors # => [
               #      { code: "EMAIL_IS_REQUIRED" },
               #      { code: "USERNAME_BELOW_MIN_LENGTH_3" }
               #    ]
+```
+
+#### Default Mode
+
+Returns ActiveModel-style errors with human-readable messages:
+
+```ruby
+Interactor::Validation.configure do |config|
+  config.error_mode = :default
+end
+
+result.errors # => [
+              #      { attribute: :email, type: :blank, message: "Email can't be blank" },
+              #      { attribute: :username, type: :too_short, message: "Username is too short (minimum is 3 characters)" }
+              #    ]
+```
+
+## Configuration
+
+### Global Configuration
+
+Configure validation behavior for all interactors:
+
+```ruby
+# config/initializers/interactor_validation.rb
+Interactor::Validation.configure do |config|
+  # Error format mode: :code (default) or :default
+  config.error_mode = :code
+
+  # Stop validation at first error (default: false)
+  config.halt_on_first_error = false
+end
+```
+
+### Per-Interactor Configuration
+
+Override global settings for specific interactors:
+
+```ruby
+class CreateUser
+  include Interactor
+  include Interactor::Validation
+
+  configure_validation do |config|
+    config.error_mode = :default
+    config.halt_on_first_error = true
+  end
+
+  validates :username, presence: true
+  validates :email, presence: true
+end
+```
+
+### Custom Error Messages
+
+Provide custom error messages for any validation:
+
+```ruby
+# With :code mode
+configure_validation do |config|
+  config.error_mode = :code
+end
+
+validates :username, presence: { message: "CUSTOM_REQUIRED_ERROR" }
+validates :email, format: { with: /@/, message: "CUSTOM_FORMAT_ERROR" }
+# => { code: "USERNAME_CUSTOM_REQUIRED_ERROR" }
+# => { code: "EMAIL_CUSTOM_FORMAT_ERROR" }
+
+# With :default mode
+configure_validation do |config|
+  config.error_mode = :default
+end
+
+validates :bio, length: { maximum: 500, message: "is too long (max 500 chars)" }
+# => { attribute: :bio, type: :too_long, message: "is too long (max 500 chars)" }
+```
+
+### Advanced Usage
+
+#### Halt on First Error
+
+Improve performance by stopping validation at the first failure:
+
+```ruby
+configure_validation do |config|
+  config.halt_on_first_error = true  # Stop at first error
+end
+
+validates :field1, presence: true
+validates :field2, presence: true  # Won't run if field1 fails
+validates :field3, presence: true  # Won't run if field1 or field2 fails
+```
+
+#### Integration with ActiveModel Validations
+
+Use ActiveModel's custom validation callbacks:
+
+```ruby
+class CreateUser
+  include Interactor
+  include Interactor::Validation
+
+  params :user_data
+
+  validate :check_user_data_structure
+  validates :username, presence: true
+
+  def check_user_data_structure
+    errors.add(:user_data, "must be a Hash") unless user_data.is_a?(Hash)
+  end
+end
 ```
 
 ## Development

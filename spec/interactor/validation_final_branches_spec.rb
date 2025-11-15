@@ -25,12 +25,12 @@ RSpec.describe Interactor::Validation, "final branch coverage" do
     it "handles validates with symbol but no rules hash" do
       # This creates a scenario where validates is called but without keyword args
       # which should delegate to ActiveModel's validates
-      expect {
+      expect do
         Class.new do
           include Interactor
           include Interactor::Validation
         end
-      }.not_to raise_error
+      end.not_to raise_error
     end
   end
 

@@ -58,9 +58,9 @@ RSpec.describe Interactor::Validation do
         result = interactor_class.call(username: "", password: nil)
         expect(result).to be_failure
         expect(result.errors).to match_array([
-          { code: "USERNAME_IS_REQUIRED" },
-          { code: "PASSWORD_IS_REQUIRED" }
-        ])
+                                               { code: "USERNAME_IS_REQUIRED" },
+                                               { code: "PASSWORD_IS_REQUIRED" }
+                                             ])
       end
     end
   end
@@ -73,7 +73,7 @@ RSpec.describe Interactor::Validation do
 
         params :email
 
-        validates :email, format: { with: /\A[\w+\-.]+@[a-z\d\-]+(\.[a-z\d\-]+)*\.[a-z]+\z/i }
+        validates :email, format: { with: /\A[\w+\-.]+@[a-z\d-]+(\.[a-z\d-]+)*\.[a-z]+\z/i }
       end
     end
 
@@ -209,7 +209,7 @@ RSpec.describe Interactor::Validation do
         params :email
 
         validates :email, presence: true
-        validates :email, format: { with: /\A[\w+\-.]+@[a-z\d\-]+(\.[a-z\d\-]+)*\.[a-z]+\z/i }
+        validates :email, format: { with: /\A[\w+\-.]+@[a-z\d-]+(\.[a-z\d-]+)*\.[a-z]+\z/i }
       end
     end
 
