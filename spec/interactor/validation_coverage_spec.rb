@@ -8,6 +8,10 @@ RSpec.describe Interactor::Validation, "coverage completion" do
         include Interactor
         include Interactor::Validation
 
+        configure_validation do |config|
+          config.error_mode = :code
+        end
+
         params :value
 
         validates :value, numericality: { less_than: 100 }
@@ -46,6 +50,10 @@ RSpec.describe Interactor::Validation, "coverage completion" do
       Class.new do
         include Interactor
         include Interactor::Validation
+
+        configure_validation do |config|
+          config.error_mode = :code
+        end
 
         params :score
 
@@ -125,6 +133,10 @@ RSpec.describe Interactor::Validation, "coverage completion" do
       Class.new do
         include Interactor
         include Interactor::Validation
+
+        configure_validation do |config|
+          config.error_mode = :code
+        end
 
         params :code
 
@@ -208,6 +220,10 @@ RSpec.describe Interactor::Validation, "coverage completion" do
       Class.new do
         include Interactor
         include Interactor::Validation
+
+        configure_validation do |config|
+          config.error_mode = :code
+        end
 
         params :field
 

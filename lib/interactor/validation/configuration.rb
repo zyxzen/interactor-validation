@@ -9,10 +9,10 @@ module Interactor
       attr_reader :error_mode
 
       # Available error modes:
-      # - :default - Uses ActiveModel-style human-readable messages
-      # - :code - Returns structured error codes (e.g., USERNAME_IS_REQUIRED) [DEFAULT]
+      # - :default - Uses ActiveModel-style human-readable messages [DEFAULT]
+      # - :code - Returns structured error codes (e.g., USERNAME_IS_REQUIRED)
       def initialize
-        @error_mode = :code
+        @error_mode = :default
         @halt_on_first_error = false
         @regex_timeout = 0.1 # 100ms timeout for regex matching (ReDoS protection)
         @max_array_size = 1000 # Maximum array size for nested validation (memory protection)

@@ -9,30 +9,30 @@ RSpec.describe Interactor::Validation, "configuration" do
   describe "global configuration" do
     it "has default configuration" do
       config = Interactor::Validation.configuration
-      expect(config.error_mode).to eq(:code)
+      expect(config.error_mode).to eq(:default)
       expect(config.halt_on_first_error).to eq(false)
     end
 
     it "allows configuration via block" do
       Interactor::Validation.configure do |config|
-        config.error_mode = :default
+        config.error_mode = :code
         config.halt_on_first_error = true
       end
 
       config = Interactor::Validation.configuration
-      expect(config.error_mode).to eq(:default)
+      expect(config.error_mode).to eq(:code)
       expect(config.halt_on_first_error).to eq(true)
     end
 
     it "resets configuration" do
       Interactor::Validation.configure do |config|
-        config.error_mode = :default
+        config.error_mode = :code
       end
 
       Interactor::Validation.reset_configuration!
 
       config = Interactor::Validation.configuration
-      expect(config.error_mode).to eq(:code)
+      expect(config.error_mode).to eq(:default)
     end
 
     it "validates error_mode values" do
@@ -294,6 +294,10 @@ RSpec.describe Interactor::Validation, "configuration" do
           include Interactor
           include Interactor::Validation
 
+          configure_validation do |config|
+            config.error_mode = :code
+          end
+
           params :text
           validates :text, length: { maximum: 10 }
         end
@@ -310,6 +314,10 @@ RSpec.describe Interactor::Validation, "configuration" do
         Class.new do
           include Interactor
           include Interactor::Validation
+
+          configure_validation do |config|
+            config.error_mode = :code
+          end
 
           params :text
           validates :text, length: { minimum: 5 }
@@ -330,6 +338,10 @@ RSpec.describe Interactor::Validation, "configuration" do
           include Interactor
           include Interactor::Validation
 
+          configure_validation do |config|
+            config.error_mode = :code
+          end
+
           params :value
           validates :value, numericality: { less_than_or_equal_to: 100 }
         end
@@ -346,6 +358,10 @@ RSpec.describe Interactor::Validation, "configuration" do
         Class.new do
           include Interactor
           include Interactor::Validation
+
+          configure_validation do |config|
+            config.error_mode = :code
+          end
 
           params :value
           validates :value, numericality: { greater_than_or_equal_to: 10 }
@@ -364,6 +380,10 @@ RSpec.describe Interactor::Validation, "configuration" do
           include Interactor
           include Interactor::Validation
 
+          configure_validation do |config|
+            config.error_mode = :code
+          end
+
           params :value
           validates :value, numericality: { equal_to: 50 }
         end
@@ -380,6 +400,10 @@ RSpec.describe Interactor::Validation, "configuration" do
         Class.new do
           include Interactor
           include Interactor::Validation
+
+          configure_validation do |config|
+            config.error_mode = :code
+          end
 
           params :value
           validates :value, numericality: { less_than: 100 }
@@ -398,6 +422,10 @@ RSpec.describe Interactor::Validation, "configuration" do
       Class.new do
         include Interactor
         include Interactor::Validation
+
+        configure_validation do |config|
+          config.error_mode = :code
+        end
 
         validates :missing_param, presence: true
       end

@@ -39,6 +39,10 @@ RSpec.describe Interactor::Validation do
         include Interactor
         include Interactor::Validation
 
+        configure_validation do |config|
+          config.error_mode = :code
+        end
+
         params :username, :password
 
         validates :username, presence: true
@@ -70,6 +74,10 @@ RSpec.describe Interactor::Validation do
       Class.new do
         include Interactor
         include Interactor::Validation
+
+        configure_validation do |config|
+          config.error_mode = :code
+        end
 
         params :email
 
@@ -105,6 +113,10 @@ RSpec.describe Interactor::Validation do
       Class.new do
         include Interactor
         include Interactor::Validation
+
+        configure_validation do |config|
+          config.error_mode = :code
+        end
 
         params :title
 
@@ -142,6 +154,10 @@ RSpec.describe Interactor::Validation do
         include Interactor
         include Interactor::Validation
 
+        configure_validation do |config|
+          config.error_mode = :code
+        end
+
         params :status
 
         validates :status, inclusion: { in: %w[active inactive pending] }
@@ -169,6 +185,10 @@ RSpec.describe Interactor::Validation do
       Class.new do
         include Interactor
         include Interactor::Validation
+
+        configure_validation do |config|
+          config.error_mode = :code
+        end
 
         params :age
 
@@ -206,6 +226,10 @@ RSpec.describe Interactor::Validation do
         include Interactor
         include Interactor::Validation
 
+        configure_validation do |config|
+          config.error_mode = :code
+        end
+
         params :email
 
         validates :email, presence: true
@@ -235,6 +259,10 @@ RSpec.describe Interactor::Validation do
         include Interactor
         include Interactor::Validation
 
+        configure_validation do |config|
+          config.error_mode = :code
+        end
+
         params :username
 
         validates :username, presence: true
@@ -258,6 +286,46 @@ RSpec.describe Interactor::Validation do
         result = interactor_class.call(username: "")
         expect(result).to be_failure
         expect(result.result).to be_nil
+      end
+    end
+  end
+
+  describe "default error mode behavior" do
+    let(:interactor_class) do
+      Class.new do
+        include Interactor
+        include Interactor::Validation
+
+        params :username, :email, :age, :status, :title
+
+        validates :username, presence: true
+        validates :email, format: { with: /@/ }
+        validates :age, numericality: { greater_than: 0 }
+        validates :status, inclusion: { in: %w[active inactive] }
+        validates :title, length: { minimum: 3 }
+      end
+    end
+
+    it "uses :default error mode by default" do
+      result = interactor_class.call(username: "", email: "invalid", age: 0, status: "deleted", title: "ab")
+      expect(result).to be_failure
+      expect(result.errors.first).to have_key(:attribute)
+      expect(result.errors.first).to have_key(:message)
+      expect(result.errors.first).to have_key(:type)
+      expect(result.errors.first).not_to have_key(:code)
+    end
+
+    it "validates all error types with default mode" do
+      result = interactor_class.call(username: "", email: "no-at-sign", age: -5, status: "invalid", title: "x")
+      expect(result).to be_failure
+      expect(result.errors.size).to be >= 3
+
+      # Check that all errors are in default format
+      result.errors.each do |error|
+        expect(error).to have_key(:attribute)
+        expect(error).to have_key(:message)
+        expect(error).to have_key(:type)
+        expect(error).not_to have_key(:code)
       end
     end
   end

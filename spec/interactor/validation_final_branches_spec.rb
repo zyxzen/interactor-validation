@@ -8,6 +8,10 @@ RSpec.describe Interactor::Validation, "final branch coverage" do
         include Interactor
         include Interactor::Validation
 
+        configure_validation do |config|
+          config.error_mode = :code
+        end
+
         params :email
 
         validates :email, presence: true
@@ -62,6 +66,10 @@ RSpec.describe Interactor::Validation, "final branch coverage" do
         include Interactor
         include Interactor::Validation
 
+        configure_validation do |config|
+          config.error_mode = :code
+        end
+
         params :hex
 
         validates :hex, format: { with: /\A#[0-9A-F]{6}\z/ }
@@ -102,6 +110,10 @@ RSpec.describe Interactor::Validation, "final branch coverage" do
       parent = Class.new do
         include Interactor
         include Interactor::Validation
+
+        configure_validation do |config|
+          config.error_mode = :code
+        end
 
         params :x
         validates :x, presence: true

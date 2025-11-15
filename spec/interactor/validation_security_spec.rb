@@ -12,6 +12,10 @@ RSpec.describe Interactor::Validation, "security features" do
         include Interactor
         include Interactor::Validation
 
+        configure_validation do |config|
+          config.error_mode = :code
+        end
+
         params :data
 
         validates :data, format: { with: /\A(a+)+b\z/ } # Potential ReDoS pattern
@@ -46,6 +50,13 @@ RSpec.describe Interactor::Validation, "security features" do
   end
 
   describe "array size limits" do
+    before do
+      # Set error_mode globally for this test
+      Interactor::Validation.configure do |config|
+        config.error_mode = :code
+      end
+    end
+
     let(:interactor_class) do
       Class.new do
         include Interactor
@@ -89,6 +100,10 @@ RSpec.describe Interactor::Validation, "security features" do
         include Interactor
         include Interactor::Validation
 
+        configure_validation do |config|
+          config.error_mode = :code
+        end
+
         params :email
 
         validates :email, format: { with: /\A[\w+\-.]+@[a-z\d-]+(\.[a-z\d-]+)*\.[a-z]+\z/i }
@@ -131,6 +146,13 @@ RSpec.describe Interactor::Validation, "security features" do
   end
 
   describe "instrumentation" do
+    before do
+      # Set error_mode globally for this test
+      Interactor::Validation.configure do |config|
+        config.error_mode = :code
+      end
+    end
+
     let(:interactor_class) do
       Class.new do
         include Interactor
@@ -192,6 +214,10 @@ RSpec.describe Interactor::Validation, "security features" do
         include Interactor
         include Interactor::Validation
 
+        configure_validation do |config|
+          config.error_mode = :code
+        end
+
         params :amount
 
         validates :amount, numericality: { greater_than: 0 }
@@ -218,6 +244,10 @@ RSpec.describe Interactor::Validation, "security features" do
       Class.new do
         include Interactor
         include Interactor::Validation
+
+        configure_validation do |config|
+          config.error_mode = :code
+        end
 
         params :user_data
 
@@ -250,6 +280,13 @@ RSpec.describe Interactor::Validation, "security features" do
   end
 
   describe "configuration memoization" do
+    before do
+      # Set error_mode globally for this test
+      Interactor::Validation.configure do |config|
+        config.error_mode = :code
+      end
+    end
+
     let(:interactor_class) do
       Class.new do
         include Interactor
@@ -282,6 +319,10 @@ RSpec.describe Interactor::Validation, "security features" do
         include Interactor
         include Interactor::Validation
 
+        configure_validation do |config|
+          config.error_mode = :code
+        end
+
         params :field1
         validates :field1, presence: true
       end
@@ -291,6 +332,10 @@ RSpec.describe Interactor::Validation, "security features" do
       Class.new do
         include Interactor
         include Interactor::Validation
+
+        configure_validation do |config|
+          config.error_mode = :code
+        end
 
         params :field2
         validates :field2, presence: true

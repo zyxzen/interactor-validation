@@ -7,6 +7,10 @@ RSpec.describe Interactor::Validation, "boolean validation" do
         include Interactor
         include Interactor::Validation
 
+        configure_validation do |config|
+          config.error_mode = :code
+        end
+
         params :is_active
 
         validates :is_active, boolean: true
@@ -66,6 +70,10 @@ RSpec.describe Interactor::Validation, "boolean validation" do
         include Interactor
         include Interactor::Validation
 
+        configure_validation do |config|
+          config.error_mode = :code
+        end
+
         params :enabled
 
         validates :enabled, boolean: { message: "Must be true or false" }
@@ -117,6 +125,10 @@ RSpec.describe Interactor::Validation, "boolean validation" do
         include Interactor
         include Interactor::Validation
 
+        configure_validation do |config|
+          config.error_mode = :code
+        end
+
         params :terms_accepted
 
         validates :terms_accepted, presence: true, boolean: true
@@ -152,6 +164,10 @@ RSpec.describe Interactor::Validation, "boolean validation" do
       Class.new do
         include Interactor
         include Interactor::Validation
+
+        configure_validation do |config|
+          config.error_mode = :code
+        end
 
         params :settings
 
@@ -195,6 +211,10 @@ RSpec.describe Interactor::Validation, "boolean validation" do
         include Interactor
         include Interactor::Validation
 
+        configure_validation do |config|
+          config.error_mode = :code
+        end
+
         params :items
 
         validates :items do
@@ -231,6 +251,10 @@ RSpec.describe Interactor::Validation, "boolean validation" do
         include Interactor
         include Interactor::Validation
 
+        configure_validation do |config|
+          config.error_mode = :code
+        end
+
         params :config
 
         validates :config do
@@ -255,6 +279,10 @@ RSpec.describe Interactor::Validation, "numericality: true validation" do
       Class.new do
         include Interactor
         include Interactor::Validation
+
+        configure_validation do |config|
+          config.error_mode = :code
+        end
 
         params :age
 
@@ -333,6 +361,10 @@ RSpec.describe Interactor::Validation, "numericality: true validation" do
         include Interactor
         include Interactor::Validation
 
+        configure_validation do |config|
+          config.error_mode = :code
+        end
+
         params :count
 
         validates :count, presence: true, numericality: true
@@ -368,6 +400,10 @@ RSpec.describe Interactor::Validation, "numericality: true validation" do
       Class.new do
         include Interactor
         include Interactor::Validation
+
+        configure_validation do |config|
+          config.error_mode = :code
+        end
 
         params :product
 

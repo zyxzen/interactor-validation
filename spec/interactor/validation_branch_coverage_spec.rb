@@ -24,6 +24,10 @@ RSpec.describe Interactor::Validation, "branch coverage" do
         include Interactor
         include Interactor::Validation
 
+        configure_validation do |config|
+          config.error_mode = :code
+        end
+
         params :amount
 
         validates :amount, numericality: { greater_than: 10 }
@@ -46,6 +50,10 @@ RSpec.describe Interactor::Validation, "branch coverage" do
         include Interactor
         include Interactor::Validation
 
+        configure_validation do |config|
+          config.error_mode = :code
+        end
+
         params :count
 
         validates :count, numericality: { greater_than_or_equal_to: 5 }
@@ -67,6 +75,10 @@ RSpec.describe Interactor::Validation, "branch coverage" do
       Class.new do
         include Interactor
         include Interactor::Validation
+
+        configure_validation do |config|
+          config.error_mode = :code
+        end
 
         params :limit
 
@@ -127,6 +139,10 @@ RSpec.describe Interactor::Validation, "branch coverage" do
       Class.new do
         include Interactor
         include Interactor::Validation
+
+        configure_validation do |config|
+          config.error_mode = :code
+        end
 
         params :value
 

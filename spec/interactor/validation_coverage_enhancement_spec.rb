@@ -290,6 +290,10 @@ RSpec.describe Interactor::Validation, "coverage enhancement" do
         include Interactor
         include Interactor::Validation
 
+        configure_validation do |config|
+          config.error_mode = :code
+        end
+
         params :field
 
         validates :field, presence: true
@@ -307,6 +311,10 @@ RSpec.describe Interactor::Validation, "coverage enhancement" do
       Class.new do
         include Interactor
         include Interactor::Validation
+
+        configure_validation do |config|
+          config.error_mode = :code
+        end
 
         params :field
         validates :field, presence: true

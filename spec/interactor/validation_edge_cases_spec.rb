@@ -7,6 +7,10 @@ RSpec.describe Interactor::Validation, "edge cases" do
         include Interactor
         include Interactor::Validation
 
+        configure_validation do |config|
+          config.error_mode = :code
+        end
+
         params :username
 
         validates :username, presence: true
@@ -53,6 +57,10 @@ RSpec.describe Interactor::Validation, "edge cases" do
         include Interactor
         include Interactor::Validation
 
+        configure_validation do |config|
+          config.error_mode = :code
+        end
+
         params :code
 
         validates :code, format: { with: /\A[A-Z]{3}\z/, message: "INVALID_CODE_FORMAT" }
@@ -71,6 +79,10 @@ RSpec.describe Interactor::Validation, "edge cases" do
       Class.new do
         include Interactor
         include Interactor::Validation
+
+        configure_validation do |config|
+          config.error_mode = :code
+        end
 
         params :pin
 
@@ -95,6 +107,10 @@ RSpec.describe Interactor::Validation, "edge cases" do
       Class.new do
         include Interactor
         include Interactor::Validation
+
+        configure_validation do |config|
+          config.error_mode = :code
+        end
 
         params :score
 
@@ -132,6 +148,10 @@ RSpec.describe Interactor::Validation, "edge cases" do
       Class.new do
         include Interactor
         include Interactor::Validation
+
+        configure_validation do |config|
+          config.error_mode = :code
+        end
 
         params :amount
 
@@ -196,6 +216,10 @@ RSpec.describe Interactor::Validation, "edge cases" do
         include Interactor
         include Interactor::Validation
 
+        configure_validation do |config|
+          config.error_mode = :code
+        end
+
         params :role
 
         validates :role, inclusion: %w[admin user guest]
@@ -259,6 +283,10 @@ RSpec.describe Interactor::Validation, "edge cases" do
         include Interactor
         include Interactor::Validation
 
+        configure_validation do |config|
+          config.error_mode = :code
+        end
+
         validates :email, presence: true
 
         def call
@@ -285,6 +313,10 @@ RSpec.describe Interactor::Validation, "edge cases" do
         include Interactor
         include Interactor::Validation
 
+        configure_validation do |config|
+          config.error_mode = :code
+        end
+
         params :value
 
         validates :value, presence: true, length: { minimum: 5, maximum: 10 }
@@ -304,6 +336,10 @@ RSpec.describe Interactor::Validation, "edge cases" do
       Class.new do
         include Interactor
         include Interactor::Validation
+
+        configure_validation do |config|
+          config.error_mode = :code
+        end
 
         params :username
 
@@ -347,6 +383,10 @@ RSpec.describe Interactor::Validation, "edge cases" do
         include Interactor
         include Interactor::Validation
 
+        configure_validation do |config|
+          config.error_mode = :code
+        end
+
         params :hex_color
 
         validates :hex_color, format: /\A#[0-9A-Fa-f]{6}\z/
@@ -369,6 +409,10 @@ RSpec.describe Interactor::Validation, "edge cases" do
       Class.new do
         include Interactor
         include Interactor::Validation
+
+        configure_validation do |config|
+          config.error_mode = :code
+        end
 
         params :id
 

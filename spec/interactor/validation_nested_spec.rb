@@ -7,6 +7,10 @@ RSpec.describe Interactor::Validation, "nested validations" do
         include Interactor
         include Interactor::Validation
 
+        configure_validation do |config|
+          config.error_mode = :code
+        end
+
         params :attributes
 
         validates :attributes do
@@ -70,6 +74,10 @@ RSpec.describe Interactor::Validation, "nested validations" do
         include Interactor
         include Interactor::Validation
 
+        configure_validation do |config|
+          config.error_mode = :code
+        end
+
         params :users
 
         validates :users do
@@ -132,6 +140,10 @@ RSpec.describe Interactor::Validation, "nested validations" do
         include Interactor
         include Interactor::Validation
 
+        configure_validation do |config|
+          config.error_mode = :code
+        end
+
         params :user
 
         validates :user do
@@ -161,6 +173,10 @@ RSpec.describe Interactor::Validation, "nested validations" do
       Class.new do
         include Interactor
         include Interactor::Validation
+
+        configure_validation do |config|
+          config.error_mode = :code
+        end
 
         params :user
 
@@ -199,6 +215,10 @@ RSpec.describe Interactor::Validation, "nested validations" do
           include Interactor
           include Interactor::Validation
 
+          configure_validation do |config|
+            config.error_mode = :code
+          end
+
           params :user
 
           validates :user do
@@ -225,6 +245,10 @@ RSpec.describe Interactor::Validation, "nested validations" do
       Class.new do
         include Interactor
         include Interactor::Validation
+
+        configure_validation do |config|
+          config.error_mode = :code
+        end
 
         params :user
 
@@ -255,6 +279,10 @@ RSpec.describe Interactor::Validation, "nested validations" do
       Class.new do
         include Interactor
         include Interactor::Validation
+
+        configure_validation do |config|
+          config.error_mode = :code
+        end
 
         params :user
 
@@ -301,6 +329,10 @@ RSpec.describe Interactor::Validation, "nested validations" do
           include Interactor
           include Interactor::Validation
 
+          configure_validation do |config|
+            config.error_mode = :code
+          end
+
           params :product
 
           validates :product do
@@ -326,6 +358,10 @@ RSpec.describe Interactor::Validation, "nested validations" do
         Class.new do
           include Interactor
           include Interactor::Validation
+
+          configure_validation do |config|
+            config.error_mode = :code
+          end
 
           params :product
 
@@ -353,6 +389,10 @@ RSpec.describe Interactor::Validation, "nested validations" do
           include Interactor
           include Interactor::Validation
 
+          configure_validation do |config|
+            config.error_mode = :code
+          end
+
           params :config
 
           validates :config do
@@ -379,6 +419,10 @@ RSpec.describe Interactor::Validation, "nested validations" do
       Class.new do
         include Interactor
         include Interactor::Validation
+
+        configure_validation do |config|
+          config.error_mode = :code
+        end
 
         params :username, :optional_field
 
@@ -455,6 +499,10 @@ RSpec.describe Interactor::Validation, "nested validations" do
         include Interactor
         include Interactor::Validation
 
+        configure_validation do |config|
+          config.error_mode = :code
+        end
+
         params :user
 
         validates :user do
@@ -480,6 +528,10 @@ RSpec.describe Interactor::Validation, "nested validations" do
       Class.new do
         include Interactor
         include Interactor::Validation
+
+        configure_validation do |config|
+          config.error_mode = :code
+        end
 
         params :items
 
@@ -521,6 +573,10 @@ RSpec.describe Interactor::Validation, "nested validations" do
         include Interactor
         include Interactor::Validation
 
+        configure_validation do |config|
+          config.error_mode = :code
+        end
+
         params :data
 
         validates :data do
@@ -550,6 +606,10 @@ RSpec.describe Interactor::Validation, "nested validations" do
       Class.new do
         include Interactor
         include Interactor::Validation
+
+        configure_validation do |config|
+          config.error_mode = :code
+        end
 
         params :user
 
