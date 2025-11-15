@@ -93,33 +93,17 @@ module Interactor
       # Module prepended to override ActiveModel instance methods
       module InstanceMethodsOverride
         # Override ActiveModel's validate! to prevent exception-raising behavior
-        # This hook is called automatically before validate_params!
+        # This hook is called automatically after validate_params!
         # Users can override this to add custom validation logic
         # @return [void]
         # @example
         #   def validate!
-        #     super  # Call parent implementation if needed
+        #     super  # Optional: call parent implementation if needed
         #     errors.add(:base, "Custom error") if some_condition?
         #   end
         def validate!
-          # Empty implementation - override in subclasses for custom validation
-          # This overrides ActiveModel::Validations#validate! which raises exceptions
-        end
-      end
-
-      private
-
-      # Validates all declared parameters before execution
-      # @return [void]
-      # @raise [Interactor::Failure] if validation fails
-      def validate_params!
-        # Memoize config for performance
-        @current_config = current_config
-
-        # Instrument validation if enabled
-        instrument("validate_params.interactor_validation") do
-          # Preserve any errors added by the validate! hook before calling valid?
-          # since valid? clears the errors object
+          # Preserve errors from validate_params! before calling super
+          # because super might trigger ActiveModel's valid? which clears errors
           existing_error_details = errors.map do |error|
             begin
               { attribute: error.attribute, type: error.type, options: error.options }
@@ -133,27 +117,61 @@ module Interactor
             end
           end
 
+          # Call super to allow class's validate! to run and add custom errors
+          # Rescue exceptions that might be raised
+          begin
+            super
+          rescue NoMethodError
+            # No parent validate! method, which is fine
+          rescue ActiveModel::ValidationError
+            # ActiveModel's validate! raises this when there are errors
+            # We handle errors differently, so just ignore this exception
+          end
+
+          # Restore errors from validate_params! and add any new ones from custom validate!
+          existing_error_details.each do |error_detail|
+            # Only add if not already present (avoid duplicates)
+            unless errors.where(error_detail[:attribute], error_detail[:type]).any?
+              begin
+                errors.add(error_detail[:attribute], error_detail[:type], **error_detail[:options])
+              rescue ArgumentError => e
+                # For anonymous classes, fall back to adding with message directly
+                raise unless e.message.include?("Class name cannot be blank")
+
+                message = error_detail[:options][:message] || error_detail[:type].to_s
+                errors.add(error_detail[:attribute], message)
+              end
+            end
+          end
+
+          # Check all accumulated errors from validate_params! and this hook
+          # Fail the context if any errors exist
+          return if errors.empty?
+
+          # Use the existing formatted_errors method which handles all the edge cases
+          context.fail!(errors: formatted_errors)
+        end
+      end
+
+      private
+
+      # Validates all declared parameters before execution
+      # Accumulates errors but does not fail the context
+      # The validate! hook will fail the context if there are any errors
+      # @return [void]
+      def validate_params!
+        # Memoize config for performance
+        @current_config = current_config
+
+        # Instrument validation if enabled
+        instrument("validate_params.interactor_validation") do
           # Trigger ActiveModel validations first (validate callbacks)
           # This runs any custom validations defined with validate :method_name
-          # NOTE: valid? clears the errors object, so we need to restore existing_errors
           begin
             valid?
           rescue ArgumentError => e
             # For anonymous classes, valid? may fail when generating messages
             raise unless e.message.include?("Class name cannot be blank")
-          end
-
-          # Restore errors from validate! hook
-          existing_error_details.each do |error_detail|
-            begin
-              errors.add(error_detail[:attribute], error_detail[:type], **error_detail[:options])
-            rescue ArgumentError => e
-              # For anonymous classes, fall back to adding with message directly
-              raise unless e.message.include?("Class name cannot be blank")
-
-              message = error_detail[:options][:message] || error_detail[:type].to_s
-              errors.add(error_detail[:attribute], message)
-            end
           end
 
           # Run our custom param validations after ActiveModel validations
@@ -166,9 +184,8 @@ module Interactor
             break if @current_config.halt_on_first_error && errors.any?
           end
 
-          return if errors.empty?
-
-          context.fail!(errors: formatted_errors)
+          # Don't fail here - let validate! hook handle failure
+          # This allows validate! to run and add additional custom errors
         end
       ensure
         @current_config = nil # Clear memoization
@@ -679,9 +696,14 @@ module Interactor
           errors.map do |error|
             # Convert attribute path to uppercase, handling nested paths
             # Example: "attributes.username" -> "ATTRIBUTES.USERNAME"
-            # Example: "attributes[0].username" -> "ATTRIBUTES[0].USERNAME"
+            # Example: "attributes[0].username" -> "ATTRIBUTES[0]_USERNAME"
             param_name = format_attribute_for_code(error.attribute)
-            message = error.message
+            begin
+              message = error.message
+            rescue ArgumentError, NoMethodError => e
+              # For anonymous classes or other edge cases, fall back to type
+              message = error.type.to_s.upcase
+            end
 
             { code: "#{param_name}_#{message}" }
           end

@@ -210,7 +210,9 @@ RSpec.describe Interactor::Validation, "error handling" do
       end
 
       result = interactor_class.call(field: "value")
-      expect(result).to be_success # No validation errors, just the custom one from validate!
+      # The presence validation passes, but the custom error from validate! causes failure
+      expect(result).to be_failure
+      expect(result.errors).to include({ code: "FIELD_SOME_CUSTOM_TYPE" })
     end
   end
 

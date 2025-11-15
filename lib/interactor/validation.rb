@@ -41,16 +41,18 @@ module Interactor
       # Set up the validation hooks after all modules are included
       # Use class_eval to ensure we're in the right context
       base.class_eval do
-        # Register both validate! and validate_params! hooks
-        # We override validate! to prevent ActiveModel's exception-raising behavior
-        before :validate! if respond_to?(:before)
+        # Register both validate_params! and validate! hooks
+        # Parameter validations run first, then custom validate! hook
         before :validate_params! if respond_to?(:before)
+        before :validate! if respond_to?(:before)
 
         # Set up inherited hook to ensure child classes also get the before hooks
         def self.inherited(subclass)
           super
-          subclass.before :validate! if subclass.respond_to?(:before)
           subclass.before :validate_params! if subclass.respond_to?(:before)
+          subclass.before :validate! if subclass.respond_to?(:before)
+          # Also prepend InstanceMethodsOverride to child classes
+          subclass.prepend(Interactor::Validation::Validates::InstanceMethodsOverride)
         end
       end
     end

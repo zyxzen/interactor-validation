@@ -233,7 +233,7 @@ RSpec.describe Interactor::Validation, "inheritance" do
       expect(test_interactor.validate_hook_called).to be true
     end
 
-    it "calls validate! before validate_params!" do
+    it "calls validate_params! before validate!" do
       call_order = []
 
       test_interactor = Class.new(base_interactor) do
@@ -257,7 +257,7 @@ RSpec.describe Interactor::Validation, "inheritance" do
 
       test_interactor.call(username: "john")
 
-      expect(call_order).to eq(%i[validate! validate_params!])
+      expect(call_order).to eq(%i[validate_params! validate!])
     end
 
     it "allows validate! to add custom errors" do
