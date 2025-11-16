@@ -322,7 +322,6 @@ Interactor::Validation.configure do |config|
 
   # Stop at first error for better performance
   config.halt = false  # Set to true to stop on first validation error
-  # config.halt_on_first_error = false  # (deprecated, use halt)
 
   # Security settings
   config.regex_timeout = 0.1        # Regex timeout in seconds (ReDoS protection)
@@ -380,7 +379,6 @@ Stop validation early for better performance and user experience:
 ```ruby
 configure_validation do |config|
   config.halt = true  # Stop after first error (recommended)
-  # config.halt_on_first_error = true  # (deprecated, use halt)
 end
 
 validates :field1, presence: true
