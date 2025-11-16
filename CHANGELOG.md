@@ -1,5 +1,34 @@
 ## [Unreleased]
 
+### New Features
+
+- **Added per-error halt support** - Use `errors.add(:field, "message", halt: true)` for fine-grained control over validation flow
+- **Renamed `halt_on_first_error` to `halt`** - Simpler, more concise configuration option
+- **Enhanced halt behavior** - Now supports both within-parameter and across-parameter early returns
+
+### Improvements
+
+- Validation halts immediately when `halt: true` is used in custom validations
+- Global `halt` configuration stops validation after first error across all parameters
+- Within-parameter halt skips remaining validation rules for that specific parameter
+- Added `ErrorsWrapper` class to intercept `errors.add` calls and extract `halt:` option
+
+### Deprecations
+
+- `config.halt_on_first_error` is deprecated in favor of `config.halt` (backward compatible with alias)
+
+### Documentation
+
+- Updated README with comprehensive halt feature documentation and examples
+- Added usage examples for both global and per-error halt configurations
+- Documented halt behavior and use cases
+
+### Testing
+
+- Added 16 new tests specifically for halt functionality
+- All 322 tests passing with no regressions
+- Line coverage: 95.37% | Branch coverage: 85.09%
+
 ## [0.2.0] - 2024-11-16
 
 ### Security

@@ -4,16 +4,20 @@ module Interactor
   module Validation
     # Configuration class for interactor validation behavior
     class Configuration
-      attr_accessor :halt_on_first_error, :regex_timeout, :max_array_size,
+      attr_accessor :halt, :regex_timeout, :max_array_size,
                     :enable_instrumentation, :cache_regex_patterns
       attr_reader :error_mode
+
+      # Backward compatibility alias for halt_on_first_error
+      alias halt_on_first_error halt
+      alias halt_on_first_error= halt=
 
       # Available error modes:
       # - :default - Uses ActiveModel-style human-readable messages [DEFAULT]
       # - :code - Returns structured error codes (e.g., USERNAME_IS_REQUIRED)
       def initialize
         @error_mode = :default
-        @halt_on_first_error = false
+        @halt = false
         @regex_timeout = 0.1 # 100ms timeout for regex matching (ReDoS protection)
         @max_array_size = 1000 # Maximum array size for nested validation (memory protection)
         @enable_instrumentation = false # ActiveSupport::Notifications instrumentation

@@ -309,7 +309,8 @@ Interactor::Validation.configure do |config|
   config.error_mode = :default
 
   # Stop at first error for better performance
-  config.halt_on_first_error = false
+  config.halt = false  # Set to true to stop on first validation error
+  # config.halt_on_first_error = false  # (deprecated, use halt)
 
   # Security settings
   config.regex_timeout = 0.1        # Regex timeout in seconds (ReDoS protection)
@@ -334,7 +335,7 @@ class CreateUser
 
   configure_validation do |config|
     config.error_mode = :code
-    config.halt_on_first_error = true
+    config.halt = true
   end
 
   validates :username, presence: true
@@ -360,17 +361,68 @@ end
 
 ### Halt on First Error
 
-Improve performance by stopping validation early:
+Stop validation early for better performance and user experience:
+
+#### Global Configuration
 
 ```ruby
 configure_validation do |config|
-  config.halt_on_first_error = true
+  config.halt = true  # Stop after first error (recommended)
+  # config.halt_on_first_error = true  # (deprecated, use halt)
 end
 
 validates :field1, presence: true
 validates :field2, presence: true  # Won't run if field1 fails
 validates :field3, presence: true  # Won't run if earlier fields fail
 ```
+
+#### Per-Error Halt
+
+Use `halt: true` with `errors.add` for fine-grained control:
+
+```ruby
+class ProcessOrder
+  include Interactor
+  include Interactor::Validation
+
+  params :order_id, :payment_method
+
+  validates :payment_method, inclusion: { in: %w[credit_card paypal] }
+
+  validate :check_order_exists
+
+  def check_order_exists
+    order = Order.find_by(id: context.order_id)
+
+    if order.nil?
+      # Halt immediately - no point validating payment if order doesn't exist
+      errors.add(:order_id, "not found", halt: true)
+      return
+    end
+
+    # This won't run if halt was triggered
+    if order.cancelled?
+      errors.add(:order_id, "order is cancelled")
+    end
+  end
+
+  def call
+    # Process order
+  end
+end
+```
+
+**How it works:**
+- **Global `halt` config**: Stops validating subsequent parameters after first error
+- **Per-error `halt: true`**: Stops validation immediately when that specific error is added
+- **Within-parameter halt**: When halt is triggered, remaining validation rules for that parameter are skipped
+- **Across-parameter halt**: Subsequent parameters won't be validated
+
+**Use cases:**
+- Stop validating dependent fields when a required field is missing
+- Skip expensive validations when basic checks fail
+- Improve API response times by failing fast
+- Provide cleaner error messages (only the most relevant error)
 
 ### ActiveModel Integration
 
@@ -622,7 +674,7 @@ class ApiInteractor
 
   configure_validation do |config|
     config.error_mode = :code  # All child classes use code mode
-    config.halt_on_first_error = true
+    config.halt = true
   end
 end
 
@@ -959,7 +1011,7 @@ Interactor::Validation.configure do |config|
   config.error_mode = :code  # or :default
 
   # Performance
-  config.halt_on_first_error = true  # Stop at first validation error
+  config.halt = true  # Stop at first validation error
 
   # Security
   config.regex_timeout = 0.1        # 100ms timeout for regex (ReDoS protection)
@@ -978,7 +1030,7 @@ class FastValidator
   include Interactor::Validation
 
   configure_validation do |config|
-    config.halt_on_first_error = true  # Override global setting
+    config.halt = true  # Override global setting
     config.error_mode = :code
   end
 
@@ -1157,7 +1209,7 @@ class ApiInteractor
 
   configure_validation do |config|
     config.error_mode = :code
-    config.halt_on_first_error = false  # Return all errors
+    config.halt = false  # Return all errors
   end
 end
 

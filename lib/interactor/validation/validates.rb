@@ -90,8 +90,33 @@ module Interactor
         end
       end
 
+      # Wrapper for ActiveModel::Errors that intercepts halt: option
+      class ErrorsWrapper < SimpleDelegator
+        def initialize(errors, interactor)
+          super(errors)
+          @interactor = interactor
+        end
+
+        # Override add to intercept halt: option
+        def add(attribute, message = :invalid, options = {})
+          # Extract halt option before passing to ActiveModel
+          halt = options.delete(:halt)
+
+          # Call the original add method
+          __getobj__.add(attribute, message, **options)
+
+          # Set halt flag if requested
+          @interactor.instance_variable_set(:@halt_validation, true) if halt
+        end
+      end
+
       # Module prepended to override ActiveModel instance methods
       module InstanceMethodsOverride
+        # Override errors to return a wrapper that intercepts halt: option
+        def errors
+          @errors ||= ErrorsWrapper.new(super, self)
+        end
+
         # Override ActiveModel's validate! to prevent exception-raising behavior
         # This hook is called automatically after validate_params!
         # Users can override this to add custom validation logic
@@ -101,48 +126,54 @@ module Interactor
         #     super  # Optional: call parent implementation if needed
         #     errors.add(:base, "Custom error") if some_condition?
         #   end
+        # rubocop:disable Metrics/AbcSize, Metrics/PerceivedComplexity
         def validate!
           # Preserve errors from validate_params! before calling super
           # because super might trigger ActiveModel's valid? which clears errors
           existing_error_details = errors.map do |error|
-            begin
-              { attribute: error.attribute, type: error.type, options: error.options }
-            rescue ArgumentError => e
-              # For anonymous classes, accessing error properties may fail
-              if e.message.include?("Class name cannot be blank")
-                { attribute: error.attribute, type: :invalid, options: {} }
-              else
-                raise
-              end
-            end
+            { attribute: error.attribute, type: error.type, options: error.options }
+          rescue ArgumentError => e
+            # For anonymous classes, accessing error properties may fail
+            raise unless e.message.include?("Class name cannot be blank")
+
+            { attribute: error.attribute, type: :invalid, options: {} }
           end
 
-          # Call super to allow class's validate! to run and add custom errors
-          # Rescue exceptions that might be raised
-          begin
-            super
-          rescue NoMethodError
-            # No parent validate! method, which is fine
-          rescue ActiveModel::ValidationError
-            # ActiveModel's validate! raises this when there are errors
-            # We handle errors differently, so just ignore this exception
+          # Skip custom validations if halt was requested
+          unless @halt_validation
+            # Call super to allow class's validate! to run and add custom errors
+            # Rescue exceptions that might be raised
+            begin
+              super
+            rescue NoMethodError
+              # No parent validate! method, which is fine
+            rescue ArgumentError => e
+              # For anonymous classes, super may fail when generating messages
+              raise unless e.message.include?("Class name cannot be blank")
+            rescue ActiveModel::ValidationError
+              # ActiveModel's validate! raises this when there are errors
+              # We handle errors differently, so just ignore this exception
+            end
           end
 
           # Restore errors from validate_params! and add any new ones from custom validate!
           existing_error_details.each do |error_detail|
             # Only add if not already present (avoid duplicates)
-            unless errors.where(error_detail[:attribute], error_detail[:type]).any?
-              begin
-                errors.add(error_detail[:attribute], error_detail[:type], **error_detail[:options])
-              rescue ArgumentError => e
-                # For anonymous classes, fall back to adding with message directly
-                raise unless e.message.include?("Class name cannot be blank")
+            next if errors.where(error_detail[:attribute], error_detail[:type]).any?
 
-                message = error_detail[:options][:message] || error_detail[:type].to_s
-                errors.add(error_detail[:attribute], message)
-              end
+            begin
+              errors.add(error_detail[:attribute], error_detail[:type], **error_detail[:options])
+            rescue ArgumentError => e
+              # For anonymous classes, fall back to adding with message directly
+              raise unless e.message.include?("Class name cannot be blank")
+
+              message = error_detail[:options][:message] || error_detail[:type].to_s
+              errors.add(error_detail[:attribute], message)
             end
           end
+
+          # Reset halt flag after validation completes
+          @halt_validation = false
 
           # Check all accumulated errors from validate_params! and this hook
           # Fail the context if any errors exist
@@ -151,6 +182,7 @@ module Interactor
           # Use the existing formatted_errors method which handles all the edge cases
           context.fail!(errors: formatted_errors)
         end
+        # rubocop:enable Metrics/AbcSize, Metrics/PerceivedComplexity
       end
 
       private
@@ -162,6 +194,8 @@ module Interactor
       def validate_params!
         # Memoize config for performance
         @current_config = current_config
+        # Initialize halt flag (but don't reset if already set)
+        @halt_validation ||= false
 
         # Instrument validation if enabled
         instrument("validate_params.interactor_validation") do
@@ -174,14 +208,17 @@ module Interactor
             raise unless e.message.include?("Class name cannot be blank")
           end
 
+          # Check if halt was requested during ActiveModel validations
+          return if @halt_validation || (@current_config.halt && errors.any?)
+
           # Run our custom param validations after ActiveModel validations
           self.class._param_validations.each do |param_name, rules|
             # Safe param access - returns nil if not present in context
             value = context.respond_to?(param_name) ? context.public_send(param_name) : nil
             validate_param(param_name, value, rules)
 
-            # Halt on first error if configured
-            break if @current_config.halt_on_first_error && errors.any?
+            # Halt on first error if configured or if halt was explicitly requested
+            break if @halt_validation || (@current_config.halt && errors.any?)
           end
 
           # Don't fail here - let validate! hook handle failure
@@ -189,6 +226,7 @@ module Interactor
         end
       ensure
         @current_config = nil # Clear memoization
+        # Don't reset @halt_validation here - let validate! handle it
       end
 
       # Get the current configuration (instance config overrides global config)
@@ -210,6 +248,7 @@ module Interactor
       end
 
       # Validates a single parameter with the given rules
+      # rubocop:disable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
       def validate_param(param_name, value, rules)
         # Skip validation if explicitly marked
         return if rules[:_skip]
@@ -220,14 +259,25 @@ module Interactor
           return
         end
 
-        # Standard validations
+        # Standard validations - halt if requested or configured after each validation
         validate_presence(param_name, value, rules)
+        return if @halt_validation || (@current_config.halt && errors.any?)
+
         validate_boolean(param_name, value, rules)
+        return if @halt_validation || (@current_config.halt && errors.any?)
+
         validate_format(param_name, value, rules)
+        return if @halt_validation || (@current_config.halt && errors.any?)
+
         validate_length(param_name, value, rules)
+        return if @halt_validation || (@current_config.halt && errors.any?)
+
         validate_inclusion(param_name, value, rules)
+        return if @halt_validation || (@current_config.halt && errors.any?)
+
         validate_numericality(param_name, value, rules)
       end
+      # rubocop:enable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
 
       # Validates nested attributes in a hash or array
       def validate_nested(param_name, value, nested_rules)
@@ -418,7 +468,7 @@ module Interactor
 
       # Add error for nested validation
       # rubocop:disable Metrics/ParameterLists
-      def add_nested_error(param_name, attr_name, custom_message, error_type, index: nil, **interpolations)
+      def add_nested_error(param_name, attr_name, custom_message, error_type, index: nil, halt: false, **interpolations)
         # Build the attribute path for the error
         attribute_path = if index.nil?
                            # Hash validation: param_name.attr_name
@@ -438,6 +488,9 @@ module Interactor
         else
           errors.add(attribute_path, error_type, **interpolations)
         end
+
+        # Set halt flag if requested
+        @halt_validation = true if halt
       end
       # rubocop:enable Metrics/ParameterLists
 
@@ -630,8 +683,9 @@ module Interactor
       # @param param_name [Symbol] the parameter name
       # @param custom_message [String, nil] custom error message if provided
       # @param error_type [Symbol] the type of validation error
+      # @param halt [Boolean] if true, halts validation immediately after adding this error
       # @param interpolations [Hash] values to interpolate into the message
-      def add_error(param_name, custom_message, error_type, **interpolations)
+      def add_error(param_name, custom_message, error_type, halt: false, **interpolations)
         if current_config.error_mode == :code
           # Code mode: use custom message or generate code
           code_message = custom_message || error_code_for(error_type, **interpolations)
@@ -642,6 +696,9 @@ module Interactor
         else
           errors.add(param_name, error_type, **interpolations)
         end
+
+        # Set halt flag if requested
+        @halt_validation = true if halt
       end
 
       # Generate error code for :code mode using constants
@@ -700,7 +757,7 @@ module Interactor
             param_name = format_attribute_for_code(error.attribute)
             begin
               message = error.message
-            rescue ArgumentError, NoMethodError => e
+            rescue ArgumentError, NoMethodError
               # For anonymous classes or other edge cases, fall back to type
               message = error.type.to_s.upcase
             end

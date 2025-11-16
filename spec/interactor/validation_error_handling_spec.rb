@@ -20,6 +20,7 @@ RSpec.describe Interactor::Validation, "error handling" do
             err = super
             def err.empty?
               raise ActiveModel::ValidationError, "Test error" if @raise_on_empty
+
               super
             end
             err

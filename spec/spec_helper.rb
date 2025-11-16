@@ -6,7 +6,7 @@ SimpleCov.start do
   add_filter "/spec/"
   add_filter "/vendor/"
   enable_coverage :branch
-  minimum_coverage line: 94, branch: 86
+  minimum_coverage line: 97, branch: 93
 end
 
 require "interactor"
