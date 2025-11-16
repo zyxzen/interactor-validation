@@ -15,7 +15,6 @@ Gem::Specification.new do |spec|
   spec.required_ruby_version = ">= 3.2.0"
 
   spec.metadata["homepage_uri"] = spec.homepage
-  spec.metadata["source_code_uri"] = "https://github.com/zyxzen/interactor-validation"
   spec.metadata["changelog_uri"] = "https://github.com/zyxzen/interactor-validation/blob/main/CHANGELOG.md"
 
   # Specify which files should be added to the gem when it is released.
@@ -32,8 +31,8 @@ Gem::Specification.new do |spec|
   spec.require_paths = ["lib"]
 
   # Runtime dependencies
-  spec.add_dependency "activemodel", ">= 6.0"
-  spec.add_dependency "activesupport", ">= 6.0"
+  spec.add_dependency "activemodel", "~> 6.0"
+  spec.add_dependency "activesupport", "~> 6.0"
   spec.add_dependency "interactor", "~> 3.0"
 
   # Development dependencies
