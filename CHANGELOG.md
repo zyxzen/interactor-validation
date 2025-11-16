@@ -1,5 +1,7 @@
 ## [Unreleased]
 
+## [0.4.0] - 2025-11-17
+
 ### New Features
 
 - **Added per-error halt support** - Use `errors.add(:field, "message", halt: true)` for fine-grained control over validation flow
