@@ -493,16 +493,15 @@ module Interactor
         if current_config.error_mode == :code
           # Code mode: use custom message or generate code
           code_message = custom_message || error_code_for(error_type, **interpolations)
-          errors.add(attribute_path, code_message)
+          errors.add(attribute_path, code_message, halt: halt)
         elsif custom_message
           # Default mode: use ActiveModel's error messages with custom message
-          errors.add(attribute_path, custom_message)
+          errors.add(attribute_path, custom_message, halt: halt)
         else
-          errors.add(attribute_path, error_type, **interpolations)
+          errors.add(attribute_path, error_type, halt: halt, **interpolations)
         end
 
-        # Set halt flag if requested
-        @halt_validation = true if halt
+        # Note: halt flag is set by ErrorsWrapper.add() if halt: true
       end
       # rubocop:enable Metrics/ParameterLists
 
@@ -701,16 +700,15 @@ module Interactor
         if current_config.error_mode == :code
           # Code mode: use custom message or generate code
           code_message = custom_message || error_code_for(error_type, **interpolations)
-          errors.add(param_name, code_message)
+          errors.add(param_name, code_message, halt: halt)
         elsif custom_message
           # Default mode: use ActiveModel's error messages
-          errors.add(param_name, custom_message)
+          errors.add(param_name, custom_message, halt: halt)
         else
-          errors.add(param_name, error_type, **interpolations)
+          errors.add(param_name, error_type, halt: halt, **interpolations)
         end
 
-        # Set halt flag if requested
-        @halt_validation = true if halt
+        # Note: halt flag is set by ErrorsWrapper.add() if halt: true
       end
 
       # Generate error code for :code mode using constants

@@ -136,7 +136,7 @@ RSpec.describe "Interactor::Validation Complete Coverage" do
   end
 
   describe "add_error and add_nested_error halt parameter" do
-    it "sets halt flag via add_error" do
+    it "raises HaltValidation when halt: true in add_error" do
       interactor_class = Class.new do
         include Interactor
         include Interactor::Validation
@@ -144,18 +144,17 @@ RSpec.describe "Interactor::Validation Complete Coverage" do
         params :value
 
         def call
-          # Directly call add_error with halt: true
+          # Directly call add_error with halt: true - this will raise
           add_error(:field, "error", :invalid, halt: true)
-          # Store halt flag status for verification
-          context.halt_was_set = @halt_validation
         end
       end
 
-      result = interactor_class.call(value: "test")
-      expect(result.halt_was_set).to be true
+      expect { interactor_class.call(value: "test") }.to raise_error(
+        Interactor::Validation::Validates::HaltValidation
+      )
     end
 
-    it "sets halt flag via add_nested_error" do
+    it "raises HaltValidation when halt: true in add_nested_error" do
       interactor_class = Class.new do
         include Interactor
         include Interactor::Validation
@@ -163,15 +162,14 @@ RSpec.describe "Interactor::Validation Complete Coverage" do
         params :data
 
         def call
-          # Directly call add_nested_error with halt: true
+          # Directly call add_nested_error with halt: true - this will raise
           add_nested_error(:data, :field, "error", :invalid, halt: true)
-          # Store halt flag status for verification
-          context.halt_was_set = @halt_validation
         end
       end
 
-      result = interactor_class.call(data: {})
-      expect(result.halt_was_set).to be true
+      expect { interactor_class.call(data: {}) }.to raise_error(
+        Interactor::Validation::Validates::HaltValidation
+      )
     end
   end
 end

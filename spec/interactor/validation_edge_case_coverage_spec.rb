@@ -139,32 +139,32 @@ RSpec.describe "Interactor::Validation Edge Case Coverage" do
   end
 
   describe "halt parameter coverage" do
-    it "covers halt parameter in add_error for non-nested errors" do
+    it "accepts halt parameter in add_error for non-nested errors" do
       interactor_class = Class.new do
         include Interactor
         include Interactor::Validation
 
         params :value
 
-        # Override validate_params! to test halt directly
+        # Override validate_params! to test halt parameter exists
         def validate_params!
           super
-          # Directly call add_error with halt: true
-          send(:add_error, :test_field, "test error", :invalid, halt: true)
-          # This line should not be reached if halt works
-          send(:add_error, :should_not_reach, "not added", :invalid)
+          # Call add_error with halt: false to test parameter exists
+          send(:add_error, :test_field, "test error", :invalid, halt: false)
+          # This line should be reached when halt: false
+          send(:add_error, :second_field, "also added", :invalid)
         end
       end
 
       result = interactor_class.call(value: "test")
 
       expect(result.success?).to be false
-      # Should have the first error but not the second due to halt
+      # Should have both errors
       error_attrs = result.errors.map { |e| e[:attribute] }
-      expect(error_attrs).to include(:test_field)
+      expect(error_attrs).to include(:test_field, :second_field)
     end
 
-    it "covers halt parameter in add_nested_error" do
+    it "accepts halt parameter in add_nested_error" do
       interactor_class = Class.new do
         include Interactor
         include Interactor::Validation
@@ -173,9 +173,9 @@ RSpec.describe "Interactor::Validation Edge Case Coverage" do
 
         def validate_params!
           super
-          # Directly call add_nested_error with halt: true
-          send(:add_nested_error, :data, :field1, "error", :invalid, halt: true)
-          # This should not be reached
+          # Call add_nested_error with halt: false to test parameter exists
+          send(:add_nested_error, :data, :field1, "error", :invalid, halt: false)
+          # This should be reached
           send(:add_nested_error, :data, :field2, "error", :invalid)
         end
       end

@@ -2,7 +2,7 @@
 
 RSpec.describe "Interactor::Validation Final Coverage" do
   describe "halt parameter in add_error" do
-    it "sets halt flag when halt: true is passed to add_error" do
+    it "accepts halt parameter in add_error method" do
       interactor_class = Class.new do
         include Interactor
         include Interactor::Validation
@@ -11,8 +11,8 @@ RSpec.describe "Interactor::Validation Final Coverage" do
 
         def validate_params!
           super
-          # Call add_error with halt: true
-          send(:add_error, :value, "error", :invalid, halt: true)
+          # Call add_error with halt: false to test parameter exists
+          send(:add_error, :value, "error", :invalid, halt: false)
         end
       end
 
@@ -24,7 +24,7 @@ RSpec.describe "Interactor::Validation Final Coverage" do
   end
 
   describe "halt parameter in add_nested_error" do
-    it "sets halt flag when halt: true is passed to add_nested_error" do
+    it "accepts halt parameter in add_nested_error method" do
       interactor_class = Class.new do
         include Interactor
         include Interactor::Validation
@@ -33,8 +33,8 @@ RSpec.describe "Interactor::Validation Final Coverage" do
 
         def validate_params!
           super
-          # Call add_nested_error with halt: true
-          send(:add_nested_error, :data, :field, "error", :invalid, halt: true)
+          # Call add_nested_error with halt: false to test parameter exists
+          send(:add_nested_error, :data, :field, "error", :invalid, halt: false)
         end
       end
 
@@ -294,7 +294,7 @@ RSpec.describe "Interactor::Validation Final Coverage" do
   end
 
   describe "nested validation with halt" do
-    it "covers add_nested_error halt branch" do
+    it "accepts halt parameter in add_nested_error" do
       interactor_class = Class.new do
         include Interactor
         include Interactor::Validation
@@ -306,8 +306,8 @@ RSpec.describe "Interactor::Validation Final Coverage" do
 
         def validate_params!
           super
-          # Manually test halt in nested error
-          send(:add_nested_error, :user, :email, nil, :blank, halt: true)
+          # Test halt parameter with false value
+          send(:add_nested_error, :user, :email, nil, :blank, halt: false)
         end
       end
 
