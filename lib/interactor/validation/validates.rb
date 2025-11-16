@@ -6,6 +6,9 @@ module Interactor
     module Validates
       extend ActiveSupport::Concern
 
+      # Exception raised when validation should halt immediately
+      class HaltValidation < StandardError; end
+
       included do
         class_attribute :_param_validations, instance_writer: false, default: {}
         # Regex pattern cache for performance
@@ -105,8 +108,11 @@ module Interactor
           # Call the original add method
           __getobj__.add(attribute, message, **options)
 
-          # Set halt flag if requested
-          @interactor.instance_variable_set(:@halt_validation, true) if halt
+          # Set halt flag and raise exception if requested
+          return unless halt
+
+          @interactor.instance_variable_set(:@halt_validation, true)
+          raise HaltValidation
         end
       end
 
@@ -153,6 +159,8 @@ module Interactor
             rescue ActiveModel::ValidationError
               # ActiveModel's validate! raises this when there are errors
               # We handle errors differently, so just ignore this exception
+            rescue HaltValidation
+              # Validation halted - error already added, continue to fail context
             end
           end
 
@@ -191,6 +199,7 @@ module Interactor
       # Accumulates errors but does not fail the context
       # The validate! hook will fail the context if there are any errors
       # @return [void]
+      # rubocop:disable Metrics/PerceivedComplexity
       def validate_params!
         # Memoize config for performance
         @current_config = current_config
@@ -224,10 +233,13 @@ module Interactor
           # Don't fail here - let validate! hook handle failure
           # This allows validate! to run and add additional custom errors
         end
+      rescue HaltValidation
+        # Validation halted - error already added, stop processing
       ensure
         @current_config = nil # Clear memoization
         # Don't reset @halt_validation here - let validate! handle it
       end
+      # rubocop:enable Metrics/PerceivedComplexity
 
       # Get the current configuration (instance config overrides global config)
       # @return [Configuration] the active configuration

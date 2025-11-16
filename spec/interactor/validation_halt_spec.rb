@@ -18,10 +18,7 @@ RSpec.describe "Validation Halt Feature" do
 
           def check_username_and_email
             # Add error with halt: true
-            if context.username.blank?
-              errors.add(:username, "is required", halt: true)
-              return
-            end
+            errors.add(:username, "is required", halt: true) if context.username.blank?
 
             # This should not be reached if halt is triggered
             errors.add(:email, "is required") if context.email.blank?
@@ -68,12 +65,9 @@ RSpec.describe "Validation Halt Feature" do
 
           def custom_validation
             # Use errors.add with nested attribute path and halt
-            if context.username.blank?
-              errors.add(:"user.username", "is required", halt: true)
-              return # Must return manually to stop current method
-            end
+            errors.add(:"user.username", "is required", halt: true) if context.username.blank?
 
-            # This will not be reached due to the return above
+            # This will not be reached due to halt above
             errors.add(:"user.email", "is required") if context.email.blank?
           end
         end
@@ -350,6 +344,54 @@ RSpec.describe "Validation Halt Feature" do
       # Should only have one error (presence passes, but format fails)
       expect(result.errors.size).to eq(1)
       expect(result.errors.first[:attribute]).to eq(:username)
+    end
+  end
+
+  describe "halt without explicit return statements" do
+    context "when using halt without return in authentication scenario" do
+      # Mock User class for testing
+      let(:user_class) do
+        Struct.new(:authenticated) do
+          def authenticate(password)
+            password == "correct"
+          end
+        end
+      end
+
+      let(:interactor_class) do
+        Class.new do
+          include Interactor
+          include Interactor::Validation
+
+          params :user, :password
+
+          validate :authenticate_user
+
+          def authenticate_user
+            errors.add(:unknown, :user, halt: true) unless context.user
+            errors.add(:incorrect, :password, halt: true) unless context.user&.authenticate(context.password)
+          end
+        end
+      end
+
+      it "halts on first error without explicit return" do
+        result = interactor_class.call(user: nil, password: "correct")
+        expect(result.errors.size).to eq(1)
+        expect(result.errors.first[:attribute]).to eq(:unknown)
+      end
+
+      it "halts on second error when first passes" do
+        user = user_class.new
+        result = interactor_class.call(user: user, password: "wrong")
+        expect(result.errors.size).to eq(1)
+        expect(result.errors.first[:attribute]).to eq(:incorrect)
+      end
+
+      it "succeeds when both validations pass" do
+        user = user_class.new
+        result = interactor_class.call(user: user, password: "correct")
+        expect(result.success?).to be true
+      end
     end
   end
 
