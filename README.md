@@ -4,39 +4,15 @@ Add declarative parameter validation to your [Interactor](https://github.com/col
 
 ## Features
 
-- **Declarative Validations** - Rails-style validation syntax (presence, format, length, inclusion, numericality, boolean)
-- **Nested Validation** - Validate hash attributes and array elements with full validation support
-- **Fine-Grained Halt Control** ⭐ NEW in v0.4.0 - Stop validation on specific errors with `errors.add(:field, message, halt: true)`
-- **Global Halt Configuration** - Optimize performance by stopping at first validation error
-- **Multiple Error Modes** - Choose between human-readable messages (`:default`) or structured error codes (`:code`)
-- **Custom Validation Hook** - Add complex business logic with the `validate!` method
-- **ActiveModel Integration** - Use standard ActiveModel validations and custom validators
-- **Security Built-in** - ReDoS protection, memory safeguards, and thread-safe validation
-- **Performance Monitoring** - Built-in instrumentation via ActiveSupport::Notifications
-- **Full Inheritance Support** - Validations and configurations inherit cleanly through class hierarchies
-
-## What's New in v0.4.0
-
-🎉 **Per-Error Halt Support** - Fine-grained control over validation flow
-
-```ruby
-validate :check_critical_field
-
-def check_critical_field
-  if critical_condition_failed?
-    # Stop validation immediately - no point continuing
-    errors.add(:field, "critical error", halt: true)
-  end
-end
-```
-
-**Key Improvements:**
-- Use `halt: true` option in `errors.add()` to stop validation on specific errors
-- Renamed `config.halt_on_first_error` to `config.halt` (backward compatible)
-- Supports both within-parameter and across-parameter halt behavior
-- Perfect for fail-fast scenarios and improving API response times
-
-See [Halt on First Error](#halt-on-first-error) section for detailed examples.
+- Declarative validations with Rails-style syntax
+- Nested validation for hash and array attributes
+- Fine-grained halt control for fail-fast validation
+- Multiple error formats (human-readable or structured codes)
+- Custom validation hooks for complex business logic
+- ActiveModel integration and custom validators
+- Built-in security (ReDoS protection, memory safeguards, thread-safe)
+- Performance monitoring via ActiveSupport::Notifications
+- Full inheritance support
 
 ## Installation
 
