@@ -4,11 +4,21 @@ Add declarative parameter validation to your [Interactor](https://github.com/col
 
 ## Installation
 
+Add the gem to your Gemfile:
+
 ```ruby
 gem "interactor-validation"
 ```
 
-## Quick Example
+Install the gem:
+
+```bash
+bundle install
+```
+
+## Usage
+
+### Quick Example
 
 ```ruby
 class CreateUser
@@ -16,66 +26,57 @@ class CreateUser
   include Interactor::Validation
 
   # Declare parameters
-  params :email, :username
+  params :email, :username, :age, :terms_accepted
 
   # Add validations
   validates :email, presence: true, format: { with: /@/ }
-  validates :username, presence: true, length: { minimum: 3 }
+  validates :username, presence: true
+  validates :age, numericality: { greater_than: 0 }
+  validates :terms_accepted, boolean: true
 
   def call
     # Validations run automatically before this
-    User.create!(email: email, username: username)
+    User.create!(email: email, username: username, age: age)
   end
 end
 
 # Use it
-result = CreateUser.call(email: "user@example.com", username: "john")
+result = CreateUser.call(
+  email: "user@example.com",
+  username: "john",
+  age: 25,
+  terms_accepted: true
+)
 result.success? # => true
 
 # Invalid data fails automatically
-result = CreateUser.call(email: "invalid", username: "ab")
+result = CreateUser.call(email: "", username: "", age: -5, terms_accepted: "yes")
 result.failure? # => true
 result.errors   # => [
-                #      { attribute: :email, type: :invalid, message: "Email is invalid" },
-                #      { attribute: :username, type: :too_short, message: "Username is too short (minimum is 3 characters)" }
+                #      { attribute: :email, type: :blank, message: "Email can't be blank" },
+                #      { attribute: :username, type: :blank, message: "Username can't be blank" },
+                #      { attribute: :age, type: :greater_than, message: "Age must be greater than 0" },
+                #      { attribute: :terms_accepted, type: :invalid, message: "Terms accepted must be true or false" }
                 #    ]
 ```
 
----
+### Examples by Validation Type
 
-## Validation Types
-
-### Presence
+#### Presence
 
 ```ruby
 validates :name, presence: true
 # Error: { attribute: :name, type: :blank, message: "Name can't be blank" }
 ```
 
-### Format (Regex)
+#### Format (Regex)
 
 ```ruby
 validates :email, format: { with: /\A[\w+\-.]+@[a-z\d\-]+(\.[a-z\d\-]+)*\.[a-z]+\z/i }
 # Error: { attribute: :email, type: :invalid, message: "Email is invalid" }
 ```
 
-### Length
-
-```ruby
-validates :password, length: { minimum: 8, maximum: 128 }
-validates :code, length: { is: 6 }
-# Errors: { attribute: :password, type: :too_short, message: "Password is too short (minimum is 8 characters)" }
-#         { attribute: :code, type: :wrong_length, message: "Code is the wrong length (should be 6 characters)" }
-```
-
-### Inclusion
-
-```ruby
-validates :status, inclusion: { in: %w[active pending inactive] }
-# Error: { attribute: :status, type: :inclusion, message: "Status is not included in the list" }
-```
-
-### Numericality
+#### Numericality
 
 ```ruby
 validates :price, numericality: { greater_than_or_equal_to: 0 }
@@ -88,19 +89,123 @@ validates :count, numericality: true  # Just check if numeric
 # - equal_to
 ```
 
-### Boolean
+#### Boolean
 
 ```ruby
 validates :is_active, boolean: true
 # Ensures value is true or false (not truthy/falsy)
 ```
 
-### Nested Validation
+---
 
-Validate nested hashes and arrays:
+## Available Validations
+
+All standard validations support custom error messages:
 
 ```ruby
-# Hash validation
+validates :field, presence: { message: "Custom message" }
+validates :field, format: { with: /pattern/, message: "Invalid format" }
+```
+
+### Presence
+
+Validates that a value is not nil or empty.
+
+```ruby
+validates :name, presence: true
+validates :email, presence: { message: "Email is required" }
+```
+
+**Errors:**
+- Default mode: `{ attribute: :name, type: :blank, message: "Name can't be blank" }`
+- Code mode: `{ code: "NAME_IS_REQUIRED" }`
+
+### Format
+
+Validates that a value matches a regular expression pattern.
+
+```ruby
+validates :email, format: { with: /\A[\w+\-.]+@[a-z\d\-]+(\.[a-z\d\-]+)*\.[a-z]+\z/i }
+validates :username, format: { with: /\A[a-z0-9_]+\z/, message: "Only lowercase letters, numbers, and underscores" }
+```
+
+**Errors:**
+- Default mode: `{ attribute: :email, type: :invalid, message: "Email is invalid" }`
+- Code mode: `{ code: "EMAIL_INVALID_FORMAT" }`
+
+### Length
+
+Validates the length of a string or array.
+
+```ruby
+validates :password, length: { minimum: 8, maximum: 128 }
+validates :code, length: { is: 6 }
+validates :bio, length: { maximum: 500 }
+```
+
+**Options:** `minimum`, `maximum`, `is`
+
+**Errors:**
+- `too_short`: Value is below minimum
+- `too_long`: Value exceeds maximum
+- `wrong_length`: Value doesn't match exact length
+
+### Inclusion
+
+Validates that a value is in a specific list.
+
+```ruby
+validates :status, inclusion: { in: %w[active pending inactive] }
+validates :role, inclusion: { in: ["admin", "user", "guest"] }
+```
+
+**Errors:**
+- Default mode: `{ attribute: :status, type: :inclusion, message: "Status is not included in the list" }`
+- Code mode: `{ code: "STATUS_NOT_IN_LIST" }`
+
+### Numericality
+
+Validates that a value is numeric and optionally meets constraints.
+
+```ruby
+validates :age, numericality: { greater_than: 0 }
+validates :price, numericality: { greater_than_or_equal_to: 0 }
+validates :quantity, numericality: { greater_than: 0, less_than_or_equal_to: 100 }
+validates :rating, numericality: { equal_to: 5 }
+validates :count, numericality: true  # Just check if numeric
+```
+
+**Options:**
+- `greater_than`
+- `greater_than_or_equal_to`
+- `less_than`
+- `less_than_or_equal_to`
+- `equal_to`
+
+**Errors:**
+- Default mode: `{ attribute: :age, type: :greater_than, message: "Age must be greater than 0" }`
+- Code mode: `{ code: "AGE_BELOW_MIN_VALUE_0" }`
+
+### Boolean
+
+Validates that a value is exactly `true` or `false` (not truthy/falsy).
+
+```ruby
+validates :is_active, boolean: true
+validates :terms_accepted, boolean: true
+```
+
+**Errors:**
+- Default mode: `{ attribute: :is_active, type: :invalid, message: "Is active must be true or false" }`
+- Code mode: `{ code: "IS_ACTIVE_INVALID_BOOLEAN" }`
+
+### Nested Validation
+
+Validate nested hashes and arrays.
+
+**Hash Validation:**
+
+```ruby
 params :user
 validates :user do
   attribute :name, presence: true
@@ -108,13 +213,38 @@ validates :user do
   attribute :age, numericality: { greater_than: 0 }
 end
 
-# Array validation
+# Usage
+result = CreateUser.call(user: { name: "", email: "bad", age: -1 })
+result.errors # => [
+              #      { attribute: "user.name", type: :blank, message: "User.name can't be blank" },
+              #      { attribute: "user.email", type: :invalid, message: "User.email is invalid" },
+              #      { attribute: "user.age", type: :greater_than, message: "User.age must be greater than 0" }
+              #    ]
+```
+
+**Array Validation:**
+
+```ruby
 params :items
 validates :items do
   attribute :name, presence: true
   attribute :price, numericality: { greater_than: 0 }
 end
+
+# Usage
+result = ProcessItems.call(items: [
+  { name: "Widget", price: 10 },
+  { name: "", price: -5 }
+])
+result.errors # => [
+              #      { attribute: "items[1].name", type: :blank, message: "Items[1].name can't be blank" },
+              #      { attribute: "items[1].price", type: :greater_than, message: "Items[1].price must be greater than 0" }
+              #    ]
 ```
+
+---
+
+# Detailed Documentation
 
 ## Error Formats
 
@@ -310,40 +440,6 @@ All validation operations are thread-safe for use with Puma, Sidekiq, etc.
 - Set appropriate `max_array_size` limits for your use case
 - Enable instrumentation to monitor performance
 - Review [SECURITY.md](SECURITY.md) for detailed information
-
-## Development
-
-```bash
-bin/setup              # Install dependencies
-bundle exec rspec      # Run tests (231 examples)
-bundle exec rubocop    # Lint code
-bin/console            # Interactive console
-```
-
-### Benchmarking
-
-```bash
-bundle exec ruby benchmark/validation_benchmark.rb
-```
-
-## Requirements
-
-- Ruby >= 3.2.0
-- Interactor ~> 3.0
-- ActiveModel >= 6.0
-- ActiveSupport >= 6.0
-
-## License
-
-MIT License - see [LICENSE.txt](LICENSE.txt)
-
-## Contributing
-
-Issues and pull requests are welcome at [https://github.com/zyxzen/interactor-validation](https://github.com/zyxzen/interactor-validation)
-
----
-
-# Detailed Documentation
 
 ## Custom Validation Hook
 
@@ -1279,3 +1375,35 @@ class UserInput
   end
 end
 ```
+
+---
+
+## Requirements
+
+- Ruby >= 3.2.0
+- Interactor ~> 3.0
+- ActiveModel >= 6.0
+- ActiveSupport >= 6.0
+
+## Development
+
+```bash
+bin/setup              # Install dependencies
+bundle exec rspec      # Run tests (231 examples)
+bundle exec rubocop    # Lint code
+bin/console            # Interactive console
+```
+
+### Benchmarking
+
+```bash
+bundle exec ruby benchmark/validation_benchmark.rb
+```
+
+## License
+
+MIT License - see [LICENSE.txt](LICENSE.txt)
+
+## Contributing
+
+Issues and pull requests are welcome at [https://github.com/zyxzen/interactor-validation](https://github.com/zyxzen/interactor-validation)
