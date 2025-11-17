@@ -7,7 +7,7 @@ Structured, lightweight parameter validation designed specifically for [Interact
 - **Built for Interactor** - Seamless integration with service objects
 - **Comprehensive validators** - Presence, format, length, inclusion, numericality, boolean
 - **Nested validation** - Validate complex hashes and arrays
-- **Custom validations** - Override `validate!` for business logic
+- **Custom validations** - `validate!` for other business logic
 - **Flexible error formats** - Human-readable messages or machine-readable codes
 - **Zero dependencies** - Just Interactor and Ruby stdlib
 - **Configurable** - Control validation behavior and error handling
@@ -253,8 +253,6 @@ class CreateOrder
   validates :user_id, presence: true
 
   def validate!
-    super  # Run parameter validations first
-
     product = Product.find_by(id: product_id)
     if product.nil?
       errors.add(:product_id, :not_found, message: "Product not found")

@@ -96,19 +96,8 @@ module Interactor
         end
       end
 
-      # Base module with default validate! that does nothing
-      module BaseValidation
-        def validate!
-          # Default implementation - does nothing
-          # Subclasses can override and call super
-        end
-      end
-
       module InstanceMethods
         def self.prepended(base)
-          # Include BaseValidation so super works in user's validate!
-          base.include(BaseValidation) unless base.ancestors.include?(BaseValidation)
-
           # Include all validator modules
           base.include(Validators::Presence)
           base.include(Validators::Numeric)
@@ -124,8 +113,7 @@ module Interactor
           @errors ||= Errors.new
         end
 
-        def validate!
-          errors.clear
+        def run_validations!
           param_errors = false
 
           # Run parameter validations
@@ -143,9 +131,9 @@ module Interactor
             param_errors = errors.any?
           end
 
-          # Call super to allow user-defined validate! to run
+          # Run custom validations if defined
           # Skip if param validations failed and skip_validate is true
-          super unless param_errors && validation_config(:skip_validate)
+          validate! if respond_to?(:validate!, true) && !(param_errors && validation_config(:skip_validate))
 
           # Fail context if any errors exist
           context.fail!(errors: format_errors) if errors.any?

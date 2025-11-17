@@ -340,7 +340,6 @@ RSpec.describe Interactor::Validation do
         validates :quantity, numericality: { greater_than: 0 }
 
         def validate!
-          super
           errors.add(:product_id, :not_found, message: "Product not found") if product_id == 999
           errors.add(:quantity, :insufficient, message: "Insufficient stock") if quantity > 100
         end
@@ -376,7 +375,6 @@ RSpec.describe Interactor::Validation do
         validates :email, presence: true
 
         def validate!
-          super
           errors.add(:custom, :custom_error, message: "Custom validation failed")
         end
       end
