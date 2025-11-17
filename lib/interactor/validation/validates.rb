@@ -11,6 +11,9 @@ require_relative "validators/array"
 
 module Interactor
   module Validation
+    # Exception raised when validation should halt on first error
+    class HaltValidation < StandardError; end
+
     module Validates
       def self.included(base)
         base.extend(ClassMethods)
@@ -126,30 +129,28 @@ module Interactor
         end
 
         def errors
-          @errors ||= Errors.new
+          @errors ||= Errors.new(halt_checker: -> { validation_config(:halt) })
         end
 
         def run_validations!
           param_errors = false
 
-          # Run parameter validations
-          if self.class._validations
-            self.class._validations.each do |param, rules|
-              value = context.respond_to?(param) ? context.public_send(param) : nil
-              validate_param(param, value, rules)
-
-              # Halt on first error if configured
-              if validation_config(:halt) && errors.any?
-                context.fail!(errors: format_errors)
-                return
+          begin
+            # Run parameter validations
+            if self.class._validations
+              self.class._validations.each do |param, rules|
+                value = context.respond_to?(param) ? context.public_send(param) : nil
+                validate_param(param, value, rules)
               end
+              param_errors = errors.any?
             end
-            param_errors = errors.any?
-          end
 
-          # Run custom validations if defined
-          # Skip if param validations failed and skip_validate is true
-          validate! if respond_to?(:validate!, true) && !(param_errors && validation_config(:skip_validate))
+            # Run custom validations if defined
+            # Skip if param validations failed and skip_validate is true
+            validate! if respond_to?(:validate!, true) && !(param_errors && validation_config(:skip_validate))
+          rescue HaltValidation
+            # Validation halted on first error - fall through to fail context
+          end
 
           # Fail context if any errors exist
           context.fail!(errors: format_errors) if errors.any?

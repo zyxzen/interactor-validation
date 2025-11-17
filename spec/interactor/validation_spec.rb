@@ -680,6 +680,67 @@ RSpec.describe Interactor::Validation do
       expect(result.errors.first[:attribute]).to eq(:quantity)
       expect(result.errors.first[:type]).to eq(:insufficient)
     end
+
+    context "with halt configuration" do
+      let(:interactor_class) do
+        Class.new do
+          include Interactor
+          include Interactor::Validation
+
+          validation_halt true
+
+          params :name, :email, :age
+
+          def validate!
+            errors.add(:name, :too_short, message: "Name is too short") if name && name.length < 3
+            errors.add(:email, :invalid_format, message: "Email format is invalid") unless email&.include?("@")
+            errors.add(:age, :out_of_range, message: "Age must be 18+") if age && age < 18
+          end
+        end
+      end
+
+      it "halts on first error in custom validate! when halt is true" do
+        result = interactor_class.call(name: "AB", email: "invalid", age: 10)
+        expect(result).to be_failure
+        expect(result.errors.length).to eq(1)
+        expect(result.errors.first[:attribute]).to eq(:name)
+        expect(result.errors.first[:type]).to eq(:too_short)
+      end
+
+      it "returns only first error even when multiple errors would be added" do
+        result = interactor_class.call(name: "AB", email: "no-at-sign", age: 15)
+        expect(result).to be_failure
+        expect(result.errors.length).to eq(1)
+      end
+    end
+
+    context "without halt configuration" do
+      let(:interactor_class) do
+        Class.new do
+          include Interactor
+          include Interactor::Validation
+
+          validation_halt false
+
+          params :name, :email, :age
+
+          def validate!
+            errors.add(:name, :too_short, message: "Name is too short") if name && name.length < 3
+            errors.add(:email, :invalid_format, message: "Email format is invalid") unless email&.include?("@")
+            errors.add(:age, :out_of_range, message: "Age must be 18+") if age && age < 18
+          end
+        end
+      end
+
+      it "collects all errors in custom validate! when halt is false" do
+        result = interactor_class.call(name: "AB", email: "invalid", age: 10)
+        expect(result).to be_failure
+        expect(result.errors.length).to eq(3)
+        expect(result.errors[0][:attribute]).to eq(:name)
+        expect(result.errors[1][:attribute]).to eq(:email)
+        expect(result.errors[2][:attribute]).to eq(:age)
+      end
+    end
   end
 
   # ============================================================================

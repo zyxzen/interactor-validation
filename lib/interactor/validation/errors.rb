@@ -8,8 +8,9 @@ module Interactor
 
       Error = Struct.new(:attribute, :type, :message, :options, keyword_init: true)
 
-      def initialize
+      def initialize(halt_checker: nil)
         @errors = []
+        @halt_checker = halt_checker
       end
 
       def add(attribute, type = :invalid, message: nil, **options)
@@ -19,6 +20,9 @@ module Interactor
           message: message || type.to_s,
           options: options
         )
+
+        # Raise HaltValidation if halt is configured
+        raise HaltValidation if @halt_checker&.call
       end
 
       def empty?
