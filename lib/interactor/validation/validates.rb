@@ -85,6 +85,12 @@ module Interactor
             self.class._validations.each do |param, rules|
               value = context.respond_to?(param) ? context.public_send(param) : nil
               validate_param(param, value, rules)
+
+              # Halt on first error if configured
+              if Interactor::Validation.configuration.halt && errors.any?
+                context.fail!(errors: format_errors)
+                return
+              end
             end
           end
 

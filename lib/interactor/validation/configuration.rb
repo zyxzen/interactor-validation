@@ -4,11 +4,12 @@ module Interactor
   module Validation
     # Configuration class for interactor validation behavior
     class Configuration
-      attr_accessor :skip_validate, :mode
+      attr_accessor :skip_validate, :mode, :halt
 
       def initialize
         @skip_validate = true # Skip validate! hook if validate_params! has errors
         @mode = :default # Error message format mode (:default or :code)
+        @halt = false # Stop validation on first error
       end
     end
 

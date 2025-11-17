@@ -2,13 +2,6 @@
 
 Minimal, lightweight parameter validation for [Interactor](https://github.com/collectiveidea/interactor) service objects.
 
-## Features
-
-- **Zero dependencies** - Only depends on `interactor` and Ruby stdlib
-- **Simple API** - Rails-style declarative validations
-- **Nested validation** - Validate hashes and arrays
-- **Custom validators** - Override `validate!` for business logic
-
 ## Installation
 
 ```ruby
@@ -27,7 +20,7 @@ class CreateUser
   params :email, :username, :age
 
   validates :email, presence: true, format: { with: /@/ }
-  validates :username, presence: true
+  validates :username, presence: true, length: { maximum: 100 }
   validates :age, numericality: { greater_than: 0 }
 
   def call
@@ -85,6 +78,9 @@ validates :price, numericality: { greater_than_or_equal_to: 0 }
 validates :quantity, numericality: { greater_than: 0, less_than_or_equal_to: 100 }
 validates :rating, numericality: { equal_to: 5 }
 validates :count, numericality: true  # Just check if numeric
+
+# Shorthand: 'numeric' works too
+validates :age, numeric: { greater_than: 0 }
 ```
 
 Options: `greater_than`, `greater_than_or_equal_to`, `less_than`, `less_than_or_equal_to`, `equal_to`
@@ -190,15 +186,88 @@ class CreateOrder
 end
 ```
 
+## Configuration
+
+Configure global validation behavior:
+
+```ruby
+Interactor::Validation.configure do |config|
+  config.skip_validate = true  # Skip custom validate! if param validations fail
+  config.mode = :default       # Error format (:default or :code)
+  config.halt = false          # Stop validation on first error
+end
+```
+
+### Configuration Options
+
+**skip_validate** (default: `true`)
+
+When enabled, skips the custom `validate!` method if parameter validations fail. This prevents executing custom validation logic (like database queries) when basic parameter checks already failed.
+
+```ruby
+Interactor::Validation.configure do |config|
+  config.skip_validate = false  # Always run custom validate! even if params fail
+end
+```
+
+**mode** (default: `:default`)
+
+Controls error message format. Options: `:default` or `:code`
+
+```ruby
+# :default mode - Human-readable messages
+Interactor::Validation.configure do |config|
+  config.mode = :default
+end
+
+result = CreateUser.call(email: "", age: -5)
+result.errors # => [
+              #      { attribute: :email, type: :blank, message: "Email can't be blank" },
+              #      { attribute: :age, type: :greater_than, message: "Age must be greater than 0" }
+              #    ]
+
+# :code mode - Machine-readable error codes
+Interactor::Validation.configure do |config|
+  config.mode = :code
+end
+
+result = CreateUser.call(email: "", age: -5)
+result.errors # => [
+              #      { code: "EMAIL_IS_REQUIRED" },
+              #      { code: "AGE_GREATER_THAN" }
+              #    ]
+```
+
+**halt** (default: `false`)
+
+When enabled, stops validation on the first error instead of collecting all errors.
+
+```ruby
+Interactor::Validation.configure do |config|
+  config.halt = true
+end
+
+result = CreateUser.call(email: "", username: "", age: -5)
+result.errors.size # => 1 (only the first error)
+```
+
 ## Error Format
 
-Errors are returned as an array of hashes:
+Errors are returned as an array of hashes. Format depends on the `mode` configuration:
 
+**Default mode:**
 ```ruby
 {
   attribute: :email,        # The field that failed
   type: :blank,             # The validation type
   message: "Email can't be blank"  # Human-readable message
+}
+```
+
+**Code mode:**
+```ruby
+{
+  code: "EMAIL_IS_REQUIRED"  # Machine-readable error code
 }
 ```
 
@@ -232,8 +301,8 @@ end
 
 This gem is intentionally minimal:
 
-- **No configuration** - Opinionated defaults that just work
-- **No optional features** - Core validations only
+- **Sensible defaults** - Works out of the box, configure only if needed
+- **Core validations only** - No optional features, no bloat
 - **No security theater** - Ruby's regex engine is safe enough
 - **No performance tricks** - Simple, readable code
 - **No external dependencies** - Just Interactor + stdlib

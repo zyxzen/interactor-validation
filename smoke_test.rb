@@ -147,5 +147,106 @@ puts "  Errors: #{result.errors.size} errors" if result.failure?
 result.errors.each { |e| puts "    - #{e[:attribute]}: #{e[:message]}" } if result.failure?
 
 puts
+
+# Test 5: Halt on first error (disabled by default)
+class TestHaltDisabled
+  include Interactor
+  include Interactor::Validation
+
+  params :email, :username, :age
+
+  validates :email, presence: true, format: { with: /@/ }
+  validates :username, presence: true
+  validates :age, numericality: { greater_than: 0 }
+
+  def call
+    context.result = "User created"
+  end
+end
+
+puts "Test 5: Halt Disabled (Default Behavior)"
+puts "=" * 50
+
+# Should collect all errors
+result = TestHaltDisabled.call(email: "", username: "", age: -5)
+puts "✗ All errors collected: #{result.failure? && result.errors.size == 3 ? 'PASS' : 'FAIL'}"
+puts "  Expected 3 errors, got #{result.errors.size}" if result.failure?
+result.errors.each { |e| puts "    - #{e[:attribute]}: #{e[:type]}" } if result.failure?
+
+puts
+
+# Test 6: Halt on first error (enabled)
+class TestHaltEnabled
+  include Interactor
+  include Interactor::Validation
+
+  params :email, :username, :age
+
+  validates :email, presence: true, format: { with: /@/ }
+  validates :username, presence: true
+  validates :age, numericality: { greater_than: 0 }
+
+  def call
+    context.result = "User created"
+  end
+end
+
+puts "Test 6: Halt Enabled (Stop on First Error)"
+puts "=" * 50
+
+# Enable halt
+Interactor::Validation.configure do |config|
+  config.halt = true
+end
+
+# Should stop at first error
+result = TestHaltEnabled.call(email: "", username: "", age: -5)
+puts "✗ Halted on first error: #{result.failure? && result.errors.size == 1 ? 'PASS' : 'FAIL'}"
+puts "  Expected 1 error, got #{result.errors.size}" if result.failure?
+result.errors.each { |e| puts "    - #{e[:attribute]}: #{e[:type]}" } if result.failure?
+
+# Reset configuration
+Interactor::Validation.configure do |config|
+  config.halt = false
+end
+
+puts
+
+# Test 7: Halt with valid first param, invalid second
+class TestHaltPartialErrors
+  include Interactor
+  include Interactor::Validation
+
+  params :email, :username, :age
+
+  validates :email, presence: true, format: { with: /@/ }
+  validates :username, presence: true, length: { minimum: 3 }
+  validates :age, numericality: { greater_than: 0 }
+
+  def call
+    context.result = "User created"
+  end
+end
+
+puts "Test 7: Halt with Valid First Param"
+puts "=" * 50
+
+# Enable halt
+Interactor::Validation.configure do |config|
+  config.halt = true
+end
+
+# Valid email, invalid username and age - should stop at username
+result = TestHaltPartialErrors.call(email: "valid@example.com", username: "", age: -5)
+puts "✗ Halted at username error: #{result.failure? && result.errors.size == 1 && result.errors.first[:attribute] == :username ? 'PASS' : 'FAIL'}"
+puts "  Expected 1 error on username, got #{result.errors.size} errors" if result.failure?
+result.errors.each { |e| puts "    - #{e[:attribute]}: #{e[:type]}" } if result.failure?
+
+# Reset configuration
+Interactor::Validation.configure do |config|
+  config.halt = false
+end
+
+puts
 puts "=" * 50
 puts "Smoke tests complete!"
