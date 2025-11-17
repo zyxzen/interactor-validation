@@ -50,7 +50,11 @@ module Interactor
 
         def validates(param_name, **rules, &)
           # Ensure we have our own copy of validations when first modifying
-          self._validations = _validations.dup if _validations.equal?(superclass._validations) rescue false
+          begin
+            self._validations = _validations.dup if _validations.equal?(superclass._validations)
+          rescue StandardError
+            false
+          end
           _validations[param_name] ||= {}
           _validations[param_name].merge!(rules)
           _validations[param_name][:_nested] = build_nested_rules(&) if block_given?
@@ -58,20 +62,32 @@ module Interactor
 
         def configure
           # Ensure we have our own copy of config before modifying
-          self._validation_config = _validation_config.dup if _validation_config.equal?(superclass._validation_config) rescue false
+          begin
+            self._validation_config = _validation_config.dup if _validation_config.equal?(superclass._validation_config)
+          rescue StandardError
+            false
+          end
           config = ConfigurationProxy.new(_validation_config)
           yield(config)
         end
 
         def validation_halt(value)
           # Ensure we have our own copy of config before modifying
-          self._validation_config = _validation_config.dup if _validation_config.equal?(superclass._validation_config) rescue false
+          begin
+            self._validation_config = _validation_config.dup if _validation_config.equal?(superclass._validation_config)
+          rescue StandardError
+            false
+          end
           _validation_config[:halt] = value
         end
 
         def validation_mode(value)
           # Ensure we have our own copy of config before modifying
-          self._validation_config = _validation_config.dup if _validation_config.equal?(superclass._validation_config) rescue false
+          begin
+            self._validation_config = _validation_config.dup if _validation_config.equal?(superclass._validation_config)
+          rescue StandardError
+            false
+          end
           _validation_config[:mode] = value
         end
 

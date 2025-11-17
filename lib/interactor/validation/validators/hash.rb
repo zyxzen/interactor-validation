@@ -17,7 +17,8 @@ module Interactor
 
           nested_rules.each do |attr, attr_rules|
             attr_path = index.nil? ? "#{param}.#{attr}" : "#{param}[#{index}].#{attr}"
-            attr_value = item[attr] || item[attr.to_s]
+            # Use key? to avoid false being treated as nil due to || operator
+            attr_value = item.key?(attr) ? item[attr] : item[attr.to_s]
             validate_nested_attribute(attr_path.to_sym, attr_value, attr_rules)
           end
         end

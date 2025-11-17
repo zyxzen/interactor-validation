@@ -59,7 +59,7 @@ RSpec.describe Interactor::Validation do
         include Interactor::Validation
 
         params :email, :username
-        validates :email, format: { with: /\A[\w+\-.]+@[a-z\d\-]+(\.[a-z\d\-]+)*\.[a-z]+\z/i }
+        validates :email, format: { with: /\A[\w+\-.]+@[a-z\d-]+(\.[a-z\d-]+)*\.[a-z]+\z/i }
         validates :username, format: { with: /\A[a-z0-9_]+\z/, message: "Invalid username format" }
       end
     end
@@ -80,6 +80,45 @@ RSpec.describe Interactor::Validation do
       result = interactor_class.call(email: "test@example.com", username: "Invalid-User!")
       expect(result).to be_failure
       expect(result.errors.first[:message]).to eq("Username Invalid username format")
+    end
+
+    context "with non-string types" do
+      let(:type_interactor) do
+        Class.new do
+          include Interactor
+          include Interactor::Validation
+
+          params :code, :id, :label
+          validates :code, format: { with: /^\d{4}$/ }
+          validates :id, format: { with: /^\d+$/ }
+          validates :label, format: { with: /^[a-z_]+$/ }
+        end
+      end
+
+      it "accepts numeric values by converting to string" do
+        result = type_interactor.call(code: 1234, id: 5678, label: :test_label)
+        expect(result).to be_success
+      end
+
+      it "accepts symbol values by converting to string" do
+        result = type_interactor.call(code: "9999", id: "1111", label: :valid_symbol)
+        expect(result).to be_success
+      end
+
+      it "validates arbitrary objects using their to_s representation" do
+        # NOTE: Format validator intentionally uses .to_s on any object
+        # This means objects with predictable string representations will match/fail based on the pattern
+        custom_object = Class.new do
+          def to_s
+            "Invalid-Label!" # Contains uppercase and special chars, won't match /^[a-z_]+$/
+          end
+        end.new
+
+        result = type_interactor.call(code: "1234", id: "5678", label: custom_object)
+        expect(result).to be_failure # "Invalid-Label!" doesn't match /^[a-z_]+$/
+        expect(result.errors.first[:attribute]).to eq(:label)
+        expect(result.errors.first[:type]).to eq(:invalid)
+      end
     end
   end
 
@@ -120,6 +159,81 @@ RSpec.describe Interactor::Validation do
     it "succeeds when all lengths are valid" do
       result = interactor_class.call(password: "validpassword", code: "123456", bio: "Test bio")
       expect(result).to be_success
+    end
+
+    context "with array values" do
+      let(:array_interactor) do
+        Class.new do
+          include Interactor
+          include Interactor::Validation
+
+          params :tags, :categories
+          validates :tags, length: { minimum: 2, maximum: 5 }
+          validates :categories, length: { is: 3 }
+        end
+      end
+
+      it "validates array length correctly" do
+        result = array_interactor.call(tags: %w[ruby rails], categories: %w[tech web dev])
+        expect(result).to be_success
+      end
+
+      it "fails when array is too short" do
+        result = array_interactor.call(tags: ["ruby"], categories: %w[tech web dev])
+        expect(result).to be_failure
+        expect(result.errors.first[:attribute]).to eq(:tags)
+        expect(result.errors.first[:type]).to eq(:too_short)
+        expect(result.errors.first[:message]).to include("items")
+      end
+
+      it "fails when array is too long" do
+        result = array_interactor.call(tags: %w[a b c d e f], categories: %w[tech web dev])
+        expect(result).to be_failure
+        expect(result.errors.first[:attribute]).to eq(:tags)
+        expect(result.errors.first[:type]).to eq(:too_long)
+        expect(result.errors.first[:message]).to include("items")
+      end
+
+      it "fails when array length is not exact" do
+        result = array_interactor.call(tags: %w[ruby rails], categories: %w[tech web])
+        expect(result).to be_failure
+        expect(result.errors.first[:attribute]).to eq(:categories)
+        expect(result.errors.first[:type]).to eq(:wrong_length)
+        expect(result.errors.first[:message]).to include("items")
+      end
+    end
+
+    context "with hash values" do
+      let(:hash_interactor) do
+        Class.new do
+          include Interactor
+          include Interactor::Validation
+
+          params :config
+          validates :config, length: { minimum: 2, maximum: 5 }
+        end
+      end
+
+      it "validates hash length correctly" do
+        result = hash_interactor.call(config: { key1: "value1", key2: "value2" })
+        expect(result).to be_success
+      end
+
+      it "fails when hash has too few items" do
+        result = hash_interactor.call(config: { key1: "value1" })
+        expect(result).to be_failure
+        expect(result.errors.first[:attribute]).to eq(:config)
+        expect(result.errors.first[:type]).to eq(:too_short)
+        expect(result.errors.first[:message]).to include("items")
+      end
+
+      it "fails when hash has too many items" do
+        result = hash_interactor.call(config: { k1: "v1", k2: "v2", k3: "v3", k4: "v4", k5: "v5", k6: "v6" })
+        expect(result).to be_failure
+        expect(result.errors.first[:attribute]).to eq(:config)
+        expect(result.errors.first[:type]).to eq(:too_long)
+        expect(result.errors.first[:message]).to include("items")
+      end
     end
   end
 
@@ -212,6 +326,67 @@ RSpec.describe Interactor::Validation do
         expect(result.errors.first[:type]).to eq(:greater_than)
       end
     end
+
+    context "with less_than_or_equal_to constraint" do
+      let(:max_interactor) do
+        Class.new do
+          include Interactor
+          include Interactor::Validation
+
+          params :score, :percentage
+          validates :score, numericality: { less_than_or_equal_to: 100 }
+          validates :percentage, numericality: { less_than_or_equal_to: 100, message: "cannot exceed 100" }
+        end
+      end
+
+      it "fails when value exceeds maximum" do
+        result = max_interactor.call(score: 101, percentage: 50)
+        expect(result).to be_failure
+        expect(result.errors.first[:attribute]).to eq(:score)
+        expect(result.errors.first[:type]).to eq(:less_than_or_equal_to)
+      end
+
+      it "succeeds when value equals maximum" do
+        result = max_interactor.call(score: 100, percentage: 100)
+        expect(result).to be_success
+      end
+
+      it "uses custom error message" do
+        result = max_interactor.call(score: 100, percentage: 101)
+        expect(result).to be_failure
+        expect(result.errors.first[:message]).to include("cannot exceed 100")
+      end
+    end
+
+    context "with string numeric values" do
+      let(:string_numeric_interactor) do
+        Class.new do
+          include Interactor
+          include Interactor::Validation
+
+          params :quantity, :price
+          validates :quantity, numericality: { greater_than: 0 }
+          validates :price, numericality: { greater_than_or_equal_to: 0.01 }
+        end
+      end
+
+      it "coerces string integers" do
+        result = string_numeric_interactor.call(quantity: "10", price: "5.99")
+        expect(result).to be_success
+      end
+
+      it "validates coerced strings correctly" do
+        result = string_numeric_interactor.call(quantity: "0", price: "0.01")
+        expect(result).to be_failure # quantity must be > 0
+        expect(result.errors.first[:attribute]).to eq(:quantity)
+      end
+
+      it "rejects non-numeric strings" do
+        result = string_numeric_interactor.call(quantity: "abc", price: "5.99")
+        expect(result).to be_failure
+        expect(result.errors.first[:type]).to eq(:not_a_number)
+      end
+    end
   end
 
   describe "boolean validator" do
@@ -242,6 +417,23 @@ RSpec.describe Interactor::Validation do
     it "succeeds when value is false" do
       result = interactor_class.call(is_active: false, terms_accepted: false)
       expect(result).to be_success
+    end
+
+    it "allows nil values (skipped when not present)" do
+      result = interactor_class.call(is_active: nil, terms_accepted: true)
+      expect(result).to be_success
+    end
+
+    it "rejects integer 0 and 1" do
+      result = interactor_class.call(is_active: 0, terms_accepted: 1)
+      expect(result).to be_failure
+      expect(result.errors.size).to eq(2)
+    end
+
+    it "rejects string values" do
+      result = interactor_class.call(is_active: "true", terms_accepted: "false")
+      expect(result).to be_failure
+      expect(result.errors.size).to eq(2)
     end
   end
 
@@ -321,6 +513,135 @@ RSpec.describe Interactor::Validation do
       ]
       result = interactor_class.call(items: items)
       expect(result).to be_success
+    end
+  end
+
+  describe "nested hash with false values" do
+    let(:interactor_class) do
+      Class.new do
+        include Interactor
+        include Interactor::Validation
+
+        params :settings
+        validates :settings do
+          attribute :enabled, presence: true
+          attribute :auto_save, presence: true
+        end
+      end
+    end
+
+    it "correctly handles false as a valid value" do
+      result = interactor_class.call(settings: { enabled: false, auto_save: false })
+      expect(result).to be_success
+    end
+
+    it "correctly handles true as a valid value" do
+      result = interactor_class.call(settings: { enabled: true, auto_save: true })
+      expect(result).to be_success
+    end
+
+    it "fails when value is nil" do
+      result = interactor_class.call(settings: { enabled: nil, auto_save: false })
+      expect(result).to be_failure
+      expect(result.errors.first[:attribute]).to eq(:"settings.enabled")
+    end
+
+    it "works with string keys in hash" do
+      result = interactor_class.call(settings: { "enabled" => false, "auto_save" => true })
+      expect(result).to be_success
+    end
+
+    context "with custom error messages" do
+      let(:custom_message_interactor) do
+        Class.new do
+          include Interactor
+          include Interactor::Validation
+
+          params :config
+          validates :config do
+            attribute :enabled, presence: { message: "must be provided" }
+            attribute :timeout, numericality: { greater_than: 0, message: "must be positive" }
+          end
+        end
+      end
+
+      it "uses custom messages in nested validations" do
+        result = custom_message_interactor.call(config: { enabled: nil, timeout: -5 })
+        expect(result).to be_failure
+        expect(result.errors.size).to eq(2)
+        expect(result.errors.first[:message]).to include("must be provided")
+        expect(result.errors.last[:message]).to include("must be positive")
+      end
+    end
+  end
+
+  describe "nested validation with mixed types" do
+    let(:interactor_class) do
+      Class.new do
+        include Interactor
+        include Interactor::Validation
+
+        params :data
+        validates :data do
+          attribute :count, numericality: true
+          attribute :active, presence: true
+          attribute :label, format: { with: /^[a-z]+$/ }
+          attribute :category, inclusion: { in: %w[a b c] }
+          attribute :description, length: { minimum: 5 }
+        end
+      end
+    end
+
+    it "validates multiple different validator types in nested hash" do
+      result = interactor_class.call(data: {
+                                       count: "not_a_number",
+                                       active: nil,
+                                       label: "Invalid123",
+                                       category: "z",
+                                       description: "sh"
+                                     })
+      expect(result).to be_failure
+      expect(result.errors.size).to eq(5)
+    end
+
+    it "succeeds when all nested validators pass" do
+      result = interactor_class.call(data: {
+                                       count: 42,
+                                       active: true,
+                                       label: "valid",
+                                       category: "a",
+                                       description: "long enough"
+                                     })
+      expect(result).to be_success
+    end
+  end
+
+  describe "nested array with halt configuration" do
+    let(:halt_interactor) do
+      Class.new do
+        include Interactor
+        include Interactor::Validation
+
+        validation_halt true
+
+        params :items
+        validates :items do
+          attribute :name, presence: true
+          attribute :price, numericality: { greater_than: 0 }
+        end
+      end
+    end
+
+    it "halts on first item with errors" do
+      items = [
+        { name: "Valid", price: 10 },
+        { name: "", price: -5 },
+        { name: "", price: -10 }
+      ]
+      result = halt_interactor.call(items: items)
+      expect(result).to be_failure
+      # Should stop after first error in second item
+      expect(result.errors.size).to be <= 2
     end
   end
 

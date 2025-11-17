@@ -33,8 +33,8 @@ module Interactor
         @errors.clear
       end
 
-      def each(&block)
-        @errors.each(&block)
+      def each(&)
+        @errors.each(&)
       end
 
       def to_a
