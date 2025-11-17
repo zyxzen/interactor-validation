@@ -273,10 +273,11 @@ module Interactor
           validate_presence(param_name, value, rules)
           return if @halt_validation || (@current_config.halt && errors.any?)
 
-          # Only run nested validation if value is not nil
-          # Empty hashes/arrays will still be validated (may fail if attributes are required)
-          # Nil values are either caught by presence validation (if required) or allowed (if optional)
-          validate_nested(param_name, value, rules[:_nested]) unless value.nil?
+          # Only run nested validation if value is present (not nil and not empty)
+          # If parent has no presence requirement, treat empty hash/array as "not provided"
+          # If parent has presence: true, empty hash/array already failed presence check above
+          should_validate_nested = value.present? || value == false
+          validate_nested(param_name, value, rules[:_nested]) if should_validate_nested
           return
         end
 

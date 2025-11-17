@@ -593,10 +593,9 @@ RSpec.describe Interactor::Validation, "nested validations" do
     end
 
     context "when hash is empty" do
-      it "fails if attributes are required" do
+      it "succeeds (empty hash is treated as not provided when parent has no presence requirement)" do
         result = interactor_class.call(data: {})
-        expect(result).to be_failure
-        expect(result.errors).to include({ code: "DATA_FIELD_IS_REQUIRED" })
+        expect(result).to be_success
       end
     end
   end
@@ -670,10 +669,9 @@ RSpec.describe Interactor::Validation, "nested validations" do
       end
 
       context "when filters is an empty hash" do
-        it "fails because nested attribute is required" do
+        it "succeeds (empty hash is treated as not provided when parent has no presence requirement)" do
           result = interactor_class.call(filters: {})
-          expect(result).to be_failure
-          expect(result.errors).to include({ code: "FILTERS_TYPE_IS_REQUIRED" })
+          expect(result).to be_success
         end
       end
 
