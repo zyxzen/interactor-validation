@@ -5,8 +5,6 @@ Minimal, lightweight parameter validation for [Interactor](https://github.com/co
 ## Features
 
 - **Zero dependencies** - Only depends on `interactor` and Ruby stdlib
-- **Tiny footprint** - ~400 lines of code total
-- **Production-ready** - Battle-tested validation logic
 - **Simple API** - Rails-style declarative validations
 - **Nested validation** - Validate hashes and arrays
 - **Custom validators** - Override `validate!` for business logic
