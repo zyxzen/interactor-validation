@@ -216,9 +216,6 @@ Benchmark.ips do |x|
   x.compare!
 end
 
-# Reset configuration
-Interactor::Validation.reset_configuration!
-
 puts "\n#{"=" * 60}"
 puts "Benchmarks complete!"
 puts "\nTo run these benchmarks:"

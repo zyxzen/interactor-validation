@@ -2,6 +2,7 @@
 
 require "interactor"
 require_relative "validation/core_ext"
+require_relative "validation/configuration"
 require_relative "validation/errors"
 require_relative "validation/params"
 require_relative "validation/validates"

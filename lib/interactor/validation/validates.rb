@@ -126,6 +126,15 @@ module Interactor
         end
 
         def format_errors
+          case Interactor::Validation.configuration.mode
+          when :code
+            format_errors_as_code
+          else
+            format_errors_as_default
+          end
+        end
+
+        def format_errors_as_default
           errors.map do |err|
             {
               attribute: err.attribute,
@@ -133,6 +142,29 @@ module Interactor
               message: "#{err.attribute.to_s.humanize} #{err.message}"
             }
           end
+        end
+
+        def format_errors_as_code
+          errors.map do |err|
+            { code: generate_error_code(err.attribute, err.type) }
+          end
+        end
+
+        def generate_error_code(attribute, type)
+          # Convert attribute to uppercase with underscores
+          # Handle nested attributes: user.email → USER_EMAIL, items[0].name → ITEMS[0]_NAME
+          code_attribute = attribute.to_s
+            .gsub(/\[(\d+)\]\./, '[\\1]_')    # items[0].name → items[0]_name (bracket before dot)
+            .gsub(".", "_")                    # user.email → user_email
+            .upcase                            # → ITEMS[0]_NAME
+
+          # Convert type to uppercase: blank → BLANK, invalid → INVALID
+          code_type = type.to_s.upcase
+
+          # For blank errors, use more semantic "IS_REQUIRED"
+          code_type = "IS_REQUIRED" if type == :blank
+
+          "#{code_attribute}_#{code_type}"
         end
       end
     end
