@@ -9,6 +9,9 @@ module Interactor
 
           value.each_with_index do |item, idx|
             validate_nested_item(param, item, nested_rules, idx)
+
+            # Halt on first error if configured
+            break if validation_config(:halt) && errors.any?
           end
         end
       end

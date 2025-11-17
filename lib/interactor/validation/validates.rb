@@ -40,22 +40,38 @@ module Interactor
       end
 
       module ClassMethods
+        def inherited(subclass)
+          super
+          # Ensure child class gets its own copy of config, merging with parent's config
+          subclass._validation_config = _validation_config.dup
+          # Ensure child class gets its own copy of validations
+          subclass._validations = _validations.dup
+        end
+
         def validates(param_name, **rules, &)
+          # Ensure we have our own copy of validations when first modifying
+          self._validations = _validations.dup if _validations.equal?(superclass._validations) rescue false
           _validations[param_name] ||= {}
           _validations[param_name].merge!(rules)
           _validations[param_name][:_nested] = build_nested_rules(&) if block_given?
         end
 
         def configure
+          # Ensure we have our own copy of config before modifying
+          self._validation_config = _validation_config.dup if _validation_config.equal?(superclass._validation_config) rescue false
           config = ConfigurationProxy.new(_validation_config)
           yield(config)
         end
 
         def validation_halt(value)
+          # Ensure we have our own copy of config before modifying
+          self._validation_config = _validation_config.dup if _validation_config.equal?(superclass._validation_config) rescue false
           _validation_config[:halt] = value
         end
 
         def validation_mode(value)
+          # Ensure we have our own copy of config before modifying
+          self._validation_config = _validation_config.dup if _validation_config.equal?(superclass._validation_config) rescue false
           _validation_config[:mode] = value
         end
 
@@ -121,7 +137,7 @@ module Interactor
               # Halt on first error if configured
               if validation_config(:halt) && errors.any?
                 context.fail!(errors: format_errors)
-                break
+                return
               end
             end
             param_errors = errors.any?
