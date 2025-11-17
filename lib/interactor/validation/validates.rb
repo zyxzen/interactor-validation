@@ -11,9 +11,6 @@ require_relative "validators/array"
 
 module Interactor
   module Validation
-    # Exception raised when validation should halt on first error
-    class HaltValidation < StandardError; end
-
     module Validates
       def self.included(base)
         base.extend(ClassMethods)
@@ -24,73 +21,18 @@ module Interactor
         base.prepend(InstanceMethods)
       end
 
-      class ConfigurationProxy
-        def initialize(config_hash)
-          @config = config_hash
-        end
-
-        def mode=(value)
-          @config[:mode] = value
-        end
-
-        def halt=(value)
-          @config[:halt] = value
-        end
-
-        def skip_validate=(value)
-          @config[:skip_validate] = value
-        end
-      end
-
       module ClassMethods
-        def inherited(subclass)
-          super
-          # Ensure child class gets its own copy of config, merging with parent's config
-          subclass._validation_config = _validation_config.dup
-          # Ensure child class gets its own copy of validations
-          subclass._validations = _validations.dup
-        end
-
         def validates(param_name, **rules, &)
-          # Ensure we have our own copy of validations when first modifying
-          begin
-            self._validations = _validations.dup if _validations.equal?(superclass._validations)
-          rescue StandardError
-            false
-          end
           _validations[param_name] ||= {}
           _validations[param_name].merge!(rules)
           _validations[param_name][:_nested] = build_nested_rules(&) if block_given?
         end
 
-        def configure
-          # Ensure we have our own copy of config before modifying
-          begin
-            self._validation_config = _validation_config.dup if _validation_config.equal?(superclass._validation_config)
-          rescue StandardError
-            false
-          end
-          config = ConfigurationProxy.new(_validation_config)
-          yield(config)
-        end
-
         def validation_halt(value)
-          # Ensure we have our own copy of config before modifying
-          begin
-            self._validation_config = _validation_config.dup if _validation_config.equal?(superclass._validation_config)
-          rescue StandardError
-            false
-          end
           _validation_config[:halt] = value
         end
 
         def validation_mode(value)
-          # Ensure we have our own copy of config before modifying
-          begin
-            self._validation_config = _validation_config.dup if _validation_config.equal?(superclass._validation_config)
-          rescue StandardError
-            false
-          end
           _validation_config[:mode] = value
         end
 
@@ -115,8 +57,19 @@ module Interactor
         end
       end
 
+      # Base module with default validate! that does nothing
+      module BaseValidation
+        def validate!
+          # Default implementation - does nothing
+          # Subclasses can override and call super
+        end
+      end
+
       module InstanceMethods
         def self.prepended(base)
+          # Include BaseValidation so super works in user's validate!
+          base.include(BaseValidation) unless base.ancestors.include?(BaseValidation)
+
           # Include all validator modules
           base.include(Validators::Presence)
           base.include(Validators::Numeric)
@@ -129,28 +82,31 @@ module Interactor
         end
 
         def errors
-          @errors ||= Errors.new(halt_checker: -> { validation_config(:halt) })
+          @errors ||= Errors.new
         end
 
-        def run_validations!
+        def validate!
+          errors.clear
           param_errors = false
 
-          begin
-            # Run parameter validations
-            if self.class._validations
-              self.class._validations.each do |param, rules|
-                value = context.respond_to?(param) ? context.public_send(param) : nil
-                validate_param(param, value, rules)
-              end
-              param_errors = errors.any?
-            end
+          # Run parameter validations
+          if self.class._validations
+            self.class._validations.each do |param, rules|
+              value = context.respond_to?(param) ? context.public_send(param) : nil
+              validate_param(param, value, rules)
 
-            # Run custom validations if defined
-            # Skip if param validations failed and skip_validate is true
-            validate! if respond_to?(:validate!, true) && !(param_errors && validation_config(:skip_validate))
-          rescue HaltValidation
-            # Validation halted on first error - fall through to fail context
+              # Halt on first error if configured
+              if validation_config(:halt) && errors.any?
+                context.fail!(errors: format_errors)
+                break
+              end
+            end
+            param_errors = errors.any?
           end
+
+          # Call super to allow user-defined validate! to run
+          # Skip if param validations failed and skip_validate is true
+          super unless param_errors && validation_config(:skip_validate)
 
           # Fail context if any errors exist
           context.fail!(errors: format_errors) if errors.any?
