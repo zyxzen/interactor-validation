@@ -33,7 +33,7 @@ class Object
   end
 
   def blank?
-    respond_to?(:empty?) ? !!empty? : !self
+    respond_to?(:empty?) ? empty? : false
   end
 end
 
@@ -46,18 +46,6 @@ end
 class FalseClass
   def blank?
     true
-  end
-end
-
-class TrueClass
-  def blank?
-    false
-  end
-end
-
-class Numeric
-  def blank?
-    false
   end
 end
 

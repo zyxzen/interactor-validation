@@ -34,6 +34,7 @@ module Interactor
           validate_length(attr_path, value, rules[:length]) if rules[:length]
           validate_inclusion(attr_path, value, rules[:inclusion]) if rules[:inclusion]
           validate_numeric(attr_path, value, rules[:numeric]) if rules[:numeric]
+          validate_numeric(attr_path, value, rules[:numericality]) if rules[:numericality]
         end
       end
     end
