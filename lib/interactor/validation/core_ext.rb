@@ -4,15 +4,50 @@ module Interactor
   module Validation
     # Minimal core extensions - no external dependencies
     module CoreExt
-      # Simple class attribute implementation
+      # Simple class attribute implementation with inheritance support
       def class_attribute(*names)
         names.each do |name|
-          # Class-level reader/writer
-          define_singleton_method(name) { instance_variable_get("@#{name}") }
-          define_singleton_method("#{name}=") { |val| instance_variable_set("@#{name}", val) }
+          ivar_name = "@#{name}"
+
+          # Class-level reader - checks own value, then parent
+          define_singleton_method(name) do
+            if instance_variable_defined?(ivar_name)
+              instance_variable_get(ivar_name)
+            elsif superclass.respond_to?(name)
+              # When reading from parent, ensure we get our own copy first
+              parent_value = superclass.public_send(name)
+              # Deep copy parent value if it hasn't been set on this class yet
+              if parent_value && !instance_variable_defined?(ivar_name)
+                copied_value = deep_copy(parent_value)
+                instance_variable_set(ivar_name, copied_value)
+                copied_value
+              else
+                parent_value
+              end
+            end
+          end
+
+          # Class-level writer
+          define_singleton_method("#{name}=") do |val|
+            instance_variable_set(ivar_name, val)
+          end
 
           # Instance-level reader delegates to class
           define_method(name) { self.class.public_send(name) }
+        end
+      end
+
+      private
+
+      def deep_copy(value)
+        case value
+        when Hash
+          value.transform_values { |v| deep_copy(v) }
+        when Array
+          value.map { |v| deep_copy(v) }
+        else
+          # For immutable objects (Symbol, Integer, etc.) or simple objects, return as-is
+          value.duplicable? ? value.dup : value
         end
       end
 
@@ -51,13 +86,32 @@ end
 
 class String
   def humanize
-    tr("_.", " ").sub(/\A./) { |char| char.upcase }
+    tr("_.", " ").sub(/\A./, &:upcase)
   end
 end
 
 class Symbol
   def humanize
     to_s.humanize
+  end
+
+  def duplicable?
+    false
+  end
+end
+
+# Make immutable classes non-duplicable
+[NilClass, FalseClass, TrueClass, Symbol, Numeric].each do |klass|
+  klass.class_eval do
+    def duplicable?
+      false
+    end
+  end
+end
+
+class Object
+  def duplicable?
+    true
   end
 end
 

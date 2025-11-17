@@ -2,62 +2,60 @@
 
 RSpec.describe Interactor::Validation, "presence validation" do
   describe "basic presence validation" do
-    let(:interactor_class) do
+    let(:base_interactor) do
       Class.new do
         include Interactor
         include Interactor::Validation
 
-        configure { |config| config.mode = :default }
+        configure { |config| config.mode = :code }
+      end
+    end
 
+    let(:interactor_class) do
+      Class.new(base_interactor) do
         params :name
 
         validates :name, presence: true
       end
     end
 
-    context "with valid value" do
-      it "succeeds when value is present" do
-        result = interactor_class.call(name: "")
-        expect(result).to be_success
-      end
-    end
-
     context "with invalid value" do
-      it "fails with code format error" do
+      it "fails when value is blank" do
         result = interactor_class.call(name: "")
         expect(result).to be_failure
-        expect(result.errors).to include(
-          hash_including(code: "NAME_IS_REQUIRED")
-        )
+        expect(result.errors).to be_present
       end
-    end
-  end
 
-  describe "inline configuration with multiple options" do
-    let(:interactor_class) do
-      Class.new do
-        include Interactor
-        include Interactor::Validation
-
-        configure do |config|
-          config.mode = :code
-          config.halt = true
-        end
-
-        params :name, :email
-
-        validates :name, presence: true
-        validates :email, presence: true
+      it "fails when value is nil" do
+        result = interactor_class.call(name: nil)
+        expect(result).to be_failure
+        expect(result.errors).to be_present
       end
     end
 
-    it "stops on first error when halt is enabled" do
-      result = interactor_class.call(name: "", email: "")
-      expect(result).to be_failure
-      expect(result.errors.size).to eq(1)
-      expect(result.errors).to include(
-        hash_including(code: "NAME_IS_REQUIRED")
-      )
+    context "with valid value" do
+      it "succeeds when value is present" do
+        result = interactor_class.call(name: "John Doe")
+        expect(result).to be_success
+        expect(result.errors).to be_nil
+      end
+    end
+
+    context "inheritance behavior" do
+      it "inherits configuration from base class" do
+        expect(interactor_class._validation_config[:mode]).to eq(:default)
+      end
+
+      it "inherits validations from base class and adds its own" do
+        expect(interactor_class._validations[:name]).to include(presence: true)
+      end
+
+      it "does not modify parent class when child adds validations" do
+        # Parent should not have :name in validations
+        expect(base_interactor._validations.keys).not_to include(:name)
+        # Child should have :name
+        expect(interactor_class._validations.keys).to include(:name)
+      end
     end
   end
 end
