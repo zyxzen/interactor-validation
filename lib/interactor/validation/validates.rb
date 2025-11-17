@@ -21,11 +21,34 @@ module Interactor
         base.prepend(InstanceMethods)
       end
 
+      class ConfigurationProxy
+        def initialize(config_hash)
+          @config = config_hash
+        end
+
+        def mode=(value)
+          @config[:mode] = value
+        end
+
+        def halt=(value)
+          @config[:halt] = value
+        end
+
+        def skip_validate=(value)
+          @config[:skip_validate] = value
+        end
+      end
+
       module ClassMethods
         def validates(param_name, **rules, &)
           _validations[param_name] ||= {}
           _validations[param_name].merge!(rules)
           _validations[param_name][:_nested] = build_nested_rules(&) if block_given?
+        end
+
+        def configure
+          config = ConfigurationProxy.new(_validation_config)
+          yield(config)
         end
 
         def validation_halt(value)
