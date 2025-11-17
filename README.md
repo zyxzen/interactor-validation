@@ -365,6 +365,9 @@ Interactor::Validation.configure do |config|
   # Stop at first error for better performance
   config.halt = false  # Set to true to stop on first validation error
 
+  # Skip custom validate! hook when parameter validation fails
+  config.skip_validate = true  # Set to false to always run validate! hook
+
   # Security settings
   config.regex_timeout = 0.1        # Regex timeout in seconds (ReDoS protection)
   config.max_array_size = 1000      # Max array size for nested validation
@@ -475,6 +478,75 @@ end
 - Skip expensive validations when basic checks fail
 - Improve API response times by failing fast
 - Provide cleaner error messages (only the most relevant error)
+
+### Skip Custom Validations on Parameter Errors
+
+Control whether custom `validate!` hooks run when parameter validation fails:
+
+```ruby
+# Default behavior (skip_validate = true)
+class CreateUser
+  include Interactor
+  include Interactor::Validation
+
+  configure_validation do |config|
+    config.skip_validate = true  # Default
+  end
+
+  params :username, :email
+
+  validates :username, presence: true
+  validates :email, presence: true
+
+  def validate!
+    # This will NOT run if username or email validation fails
+    # Improves performance by skipping expensive checks
+    user_exists = User.exists?(username: username)
+    errors.add(:username, "already taken") if user_exists
+  end
+
+  def call
+    User.create!(username: username, email: email)
+  end
+end
+
+# With skip_validate = false, always run validate!
+class CreateUserAlwaysValidate
+  include Interactor
+  include Interactor::Validation
+
+  configure_validation do |config|
+    config.skip_validate = false  # Run validate! even with param errors
+  end
+
+  params :username, :email
+
+  validates :username, presence: true
+  validates :email, presence: true
+
+  def validate!
+    # This WILL run even if username or email is missing
+    # Useful when you need to collect all possible errors
+    user_exists = User.exists?(username: username) if username.present?
+    errors.add(:username, "already taken") if user_exists
+  end
+
+  def call
+    User.create!(username: username, email: email)
+  end
+end
+```
+
+**When to use skip_validate = true (default):**
+- Skip expensive database lookups when basic params are invalid
+- Avoid unnecessary API calls when required fields are missing
+- Improve performance in high-traffic endpoints
+- Fail fast with only parameter validation errors
+
+**When to use skip_validate = false:**
+- Collect all possible validation errors in a single request
+- Always run business logic validations regardless of param state
+- Provide comprehensive error feedback to users
 
 ### ActiveModel Integration
 
