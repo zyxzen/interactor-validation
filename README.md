@@ -213,19 +213,49 @@ validates :terms_accepted, boolean: true
 
 ### Nested Validation
 
-Validate nested hashes and arrays.
+Validate nested hashes and arrays with support for both optional and required parameters.
 
-**Hash Validation:**
+**Optional Nested Validation (parameter can be nil):**
+
+```ruby
+params :filters
+validates :filters do
+  attribute :type, presence: true
+  attribute :value
+end
+
+# When filters is nil or missing - succeeds
+result = SearchItems.call(filters: nil)
+result.success? # => true
+
+# When filters is present - validates nested attributes
+result = SearchItems.call(filters: { type: "category" })
+result.success? # => true
+
+# When filters is present but invalid - fails
+result = SearchItems.call(filters: { value: "test" })
+result.errors # => [{ attribute: "filters.type", type: :blank, message: "Filters.type can't be blank" }]
+```
+
+**Required Nested Validation (parameter must be present):**
 
 ```ruby
 params :user
-validates :user do
+validates :user, presence: true do
   attribute :name, presence: true
   attribute :email, format: { with: /@/ }
   attribute :age, numericality: { greater_than: 0 }
 end
 
-# Usage
+# When user is nil - fails with presence error
+result = CreateUser.call(user: nil)
+result.errors # => [{ attribute: :user, type: :blank, message: "User can't be blank" }]
+
+# When user is empty hash - fails with presence error (empty hashes are not .present?)
+result = CreateUser.call(user: {})
+result.errors # => [{ attribute: :user, type: :blank, message: "User can't be blank" }]
+
+# When user is present - validates nested attributes
 result = CreateUser.call(user: { name: "", email: "bad", age: -1 })
 result.errors # => [
               #      { attribute: "user.name", type: :blank, message: "User.name can't be blank" },
@@ -252,6 +282,18 @@ result.errors # => [
               #      { attribute: "items[1].name", type: :blank, message: "Items[1].name can't be blank" },
               #      { attribute: "items[1].price", type: :greater_than, message: "Items[1].price must be greater than 0" }
               #    ]
+
+# Optional array (can be nil)
+result = ProcessItems.call(items: nil)
+result.success? # => true
+
+# Required array (must be present)
+validates :items, presence: true do
+  attribute :name, presence: true
+end
+
+result = ProcessItems.call(items: nil)
+result.errors # => [{ attribute: :items, type: :blank, message: "Items can't be blank" }]
 ```
 
 ---
@@ -1059,14 +1101,45 @@ end
 ### Nested Validation Examples
 
 ```ruby
-# Hash validation
+# Optional hash validation (parameter can be nil)
+class SearchWithFilters
+  include Interactor
+  include Interactor::Validation
+
+  params :filters
+
+  validates :filters do
+    attribute :category, presence: true
+    attribute :min_price, numericality: { greater_than_or_equal_to: 0 }
+    attribute :max_price, numericality: { greater_than_or_equal_to: 0 }
+  end
+
+  def call
+    # filters is optional - if nil, skip filtering
+    results = filters ? apply_filters(Product.all) : Product.all
+    context.results = results
+  end
+end
+
+# When filters is nil - succeeds
+result = SearchWithFilters.call(filters: nil)
+result.success? # => true
+
+# When filters is present but invalid - fails
+result = SearchWithFilters.call(filters: { min_price: -10 })
+result.errors # => [
+              #      { attribute: "filters.category", type: :blank, message: "Filters.category can't be blank" },
+              #      { attribute: "filters.min_price", type: :greater_than_or_equal_to, message: "..." }
+              #    ]
+
+# Required hash validation (parameter must be present)
 class CreateUserWithProfile
   include Interactor
   include Interactor::Validation
 
   params :user
 
-  validates :user do
+  validates :user, presence: true do
     attribute :name, presence: true
     attribute :email, format: { with: /@/ }
     attribute :age, numericality: { greater_than: 0 }
@@ -1078,7 +1151,14 @@ class CreateUserWithProfile
   end
 end
 
-# Usage
+# When user is nil or empty - fails with presence error
+result = CreateUserWithProfile.call(user: nil)
+result.errors # => [{ attribute: :user, type: :blank, message: "User can't be blank" }]
+
+result = CreateUserWithProfile.call(user: {})
+result.errors # => [{ attribute: :user, type: :blank, message: "User can't be blank" }]
+
+# When user is present but invalid - validates nested attributes
 result = CreateUserWithProfile.call(
   user: {
     name: "",
@@ -1094,7 +1174,7 @@ result.errors # => [
               #      { attribute: "user.bio", type: :too_long, message: "User.bio is too long (maximum is 500 characters)" }
               #    ]
 
-# Array validation
+# Array validation (optional)
 class BulkCreateItems
   include Interactor
   include Interactor::Validation
@@ -1108,11 +1188,16 @@ class BulkCreateItems
   end
 
   def call
+    return if items.nil?  # Optional - handle nil gracefully
     items.each { |item| Item.create!(item) }
   end
 end
 
-# Usage
+# When items is nil - succeeds
+result = BulkCreateItems.call(items: nil)
+result.success? # => true
+
+# When items is present - validates each item
 result = BulkCreateItems.call(
   items: [
     { name: "Widget", price: 10, quantity: 5 },
@@ -1124,6 +1209,30 @@ result.errors # => [
               #      { attribute: "items[1].price", type: :greater_than, message: "Items[1].price must be greater than 0" },
               #      { attribute: "items[1].quantity", type: :greater_than_or_equal_to, message: "Items[1].quantity must be greater than or equal to 1" }
               #    ]
+
+# Required array validation
+class BulkCreateRequiredItems
+  include Interactor
+  include Interactor::Validation
+
+  params :items
+
+  validates :items, presence: true do
+    attribute :name, presence: true
+    attribute :price, numericality: { greater_than: 0 }
+  end
+
+  def call
+    items.each { |item| Item.create!(item) }
+  end
+end
+
+# When items is nil or empty - fails with presence error
+result = BulkCreateRequiredItems.call(items: nil)
+result.errors # => [{ attribute: :items, type: :blank, message: "Items can't be blank" }]
+
+result = BulkCreateRequiredItems.call(items: [])
+result.errors # => [{ attribute: :items, type: :blank, message: "Items can't be blank" }]
 ```
 
 ### ActiveModel Integration

@@ -634,4 +634,228 @@ RSpec.describe Interactor::Validation, "nested validations" do
       end
     end
   end
+
+  describe "optional vs required nested validation" do
+    describe "optional nested validation (without presence)" do
+      let(:interactor_class) do
+        Class.new do
+          include Interactor
+          include Interactor::Validation
+
+          configure_validation do |config|
+            config.error_mode = :code
+          end
+
+          params :filters
+
+          validates :filters do
+            attribute :type, presence: true
+            attribute :value
+          end
+        end
+      end
+
+      context "when filters is nil" do
+        it "succeeds (optional parameter)" do
+          result = interactor_class.call(filters: nil)
+          expect(result).to be_success
+        end
+      end
+
+      context "when filters is missing completely" do
+        it "succeeds (optional parameter)" do
+          result = interactor_class.call({})
+          expect(result).to be_success
+        end
+      end
+
+      context "when filters is an empty hash" do
+        it "fails because nested attribute is required" do
+          result = interactor_class.call(filters: {})
+          expect(result).to be_failure
+          expect(result.errors).to include({ code: "FILTERS_TYPE_IS_REQUIRED" })
+        end
+      end
+
+      context "when filters is present with valid data" do
+        it "succeeds" do
+          result = interactor_class.call(filters: { type: "search", value: "test" })
+          expect(result).to be_success
+        end
+      end
+
+      context "when filters is present but nested attribute is missing" do
+        it "fails with nested validation error" do
+          result = interactor_class.call(filters: { value: "test" })
+          expect(result).to be_failure
+          expect(result.errors).to include({ code: "FILTERS_TYPE_IS_REQUIRED" })
+        end
+      end
+    end
+
+    describe "required nested validation (with presence: true)" do
+      let(:interactor_class) do
+        Class.new do
+          include Interactor
+          include Interactor::Validation
+
+          configure_validation do |config|
+            config.error_mode = :code
+          end
+
+          params :filters
+
+          validates :filters, presence: true do
+            attribute :type, presence: true
+            attribute :value
+          end
+        end
+      end
+
+      context "when filters is nil" do
+        it "fails with presence error" do
+          result = interactor_class.call(filters: nil)
+          expect(result).to be_failure
+          expect(result.errors).to include({ code: "FILTERS_IS_REQUIRED" })
+        end
+      end
+
+      context "when filters is missing completely" do
+        it "fails with presence error" do
+          result = interactor_class.call({})
+          expect(result).to be_failure
+          expect(result.errors).to include({ code: "FILTERS_IS_REQUIRED" })
+        end
+      end
+
+      context "when filters is an empty hash" do
+        it "fails with presence error (empty hash is not present)" do
+          result = interactor_class.call(filters: {})
+          expect(result).to be_failure
+          expect(result.errors).to include({ code: "FILTERS_IS_REQUIRED" })
+        end
+      end
+
+      context "when filters is present with valid data" do
+        it "succeeds" do
+          result = interactor_class.call(filters: { type: "search", value: "test" })
+          expect(result).to be_success
+        end
+      end
+
+      context "when filters is present but nested attribute is missing" do
+        it "fails with nested validation error" do
+          result = interactor_class.call(filters: { value: "test" })
+          expect(result).to be_failure
+          expect(result.errors).to include({ code: "FILTERS_TYPE_IS_REQUIRED" })
+        end
+      end
+    end
+
+    describe "required nested validation with arrays" do
+      let(:interactor_class) do
+        Class.new do
+          include Interactor
+          include Interactor::Validation
+
+          configure_validation do |config|
+            config.error_mode = :code
+          end
+
+          params :items
+
+          validates :items, presence: true do
+            attribute :name, presence: true
+          end
+        end
+      end
+
+      context "when items is nil" do
+        it "fails with presence error" do
+          result = interactor_class.call(items: nil)
+          expect(result).to be_failure
+          expect(result.errors).to include({ code: "ITEMS_IS_REQUIRED" })
+        end
+      end
+
+      context "when items is an empty array" do
+        it "fails with presence error (empty array is not present)" do
+          result = interactor_class.call(items: [])
+          expect(result).to be_failure
+          expect(result.errors).to include({ code: "ITEMS_IS_REQUIRED" })
+        end
+      end
+
+      context "when items is present with valid data" do
+        it "succeeds" do
+          result = interactor_class.call(items: [{ name: "Item 1" }, { name: "Item 2" }])
+          expect(result).to be_success
+        end
+      end
+    end
+
+    describe "required nested validation with halt on first error" do
+      let(:interactor_class) do
+        Class.new do
+          include Interactor
+          include Interactor::Validation
+
+          configure_validation do |config|
+            config.error_mode = :code
+            config.halt = true
+          end
+
+          params :filters
+
+          validates :filters, presence: true do
+            attribute :type, presence: true
+            attribute :value, presence: true
+          end
+        end
+      end
+
+      context "when filters is nil with halt enabled" do
+        it "halts after presence error without running nested validation" do
+          result = interactor_class.call(filters: nil)
+          expect(result).to be_failure
+          # Should only have presence error, not nested validation errors
+          expect(result.errors).to eq([{ code: "FILTERS_IS_REQUIRED" }])
+        end
+      end
+    end
+
+    describe "optional nested validation without presence or other rules" do
+      let(:interactor_class) do
+        Class.new do
+          include Interactor
+          include Interactor::Validation
+
+          configure_validation do |config|
+            config.error_mode = :code
+          end
+
+          params :filters
+
+          # Only nested validation, no presence or other rules
+          validates :filters do
+            attribute :type
+          end
+        end
+      end
+
+      context "when filters is nil" do
+        it "succeeds (no validation rules, filters is optional)" do
+          result = interactor_class.call(filters: nil)
+          expect(result).to be_success
+        end
+      end
+
+      context "when filters is present" do
+        it "succeeds (type has no validation rules)" do
+          result = interactor_class.call(filters: { type: nil })
+          expect(result).to be_success
+        end
+      end
+    end
+  end
 end

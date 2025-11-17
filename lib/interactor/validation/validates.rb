@@ -46,8 +46,9 @@ module Interactor
               nested_rules = build_nested_rules(&)
               current_validations = _param_validations.dup
               existing_rules = current_validations[param_name] || {}
+              # Merge both the validation rules (like presence: true) AND the nested rules
               self._param_validations = current_validations.merge(
-                param_name => existing_rules.merge(_nested: nested_rules)
+                param_name => existing_rules.merge(rules).merge(_nested: nested_rules)
               )
               return
             end
@@ -260,14 +261,22 @@ module Interactor
       end
 
       # Validates a single parameter with the given rules
-      # rubocop:disable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
+      # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
       def validate_param(param_name, value, rules)
         # Skip validation if explicitly marked
         return if rules[:_skip]
 
         # Handle nested validation (hash or array)
         if rules[:_nested]
-          validate_nested(param_name, value, rules[:_nested])
+          # Run presence validation first if it exists
+          # This allows optional vs required nested validation
+          validate_presence(param_name, value, rules)
+          return if @halt_validation || (@current_config.halt && errors.any?)
+
+          # Only run nested validation if value is not nil
+          # Empty hashes/arrays will still be validated (may fail if attributes are required)
+          # Nil values are either caught by presence validation (if required) or allowed (if optional)
+          validate_nested(param_name, value, rules[:_nested]) unless value.nil?
           return
         end
 
@@ -289,10 +298,13 @@ module Interactor
 
         validate_numericality(param_name, value, rules)
       end
-      # rubocop:enable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
+      # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
 
       # Validates nested attributes in a hash or array
       def validate_nested(param_name, value, nested_rules)
+        # Return early if value is nil - presence validation handles this if required
+        return if value.nil?
+
         if value.is_a?(Array)
           validate_array_of_hashes(param_name, value, nested_rules)
         elsif value.is_a?(Hash)
@@ -501,7 +513,7 @@ module Interactor
           errors.add(attribute_path, error_type, halt: halt, **interpolations)
         end
 
-        # Note: halt flag is set by ErrorsWrapper.add() if halt: true
+        # NOTE: halt flag is set by ErrorsWrapper.add() if halt: true
       end
       # rubocop:enable Metrics/ParameterLists
 
@@ -708,7 +720,7 @@ module Interactor
           errors.add(param_name, error_type, halt: halt, **interpolations)
         end
 
-        # Note: halt flag is set by ErrorsWrapper.add() if halt: true
+        # NOTE: halt flag is set by ErrorsWrapper.add() if halt: true
       end
 
       # Generate error code for :code mode using constants
