@@ -1,60 +1,18 @@
 # frozen_string_literal: true
 
 require "interactor"
-require "active_support/concern"
-require "active_model"
-
-require_relative "validation/version"
-require_relative "validation/configuration"
-require_relative "validation/error_codes"
+require_relative "validation/core_ext"
+require_relative "validation/errors"
 require_relative "validation/params"
 require_relative "validation/validates"
+require_relative "validation/version"
 
 module Interactor
   module Validation
-    class Error < StandardError; end
-
-    extend ActiveSupport::Concern
-
-    included do
-      include Params
-      include Validates
-
-      # Instance-level configuration (can override global config)
-      class_attribute :validation_config, instance_writer: false, default: nil
-    end
-
-    class_methods do
-      # Configure validation behavior for this interactor class
-      # @example
-      #   configure_validation do |config|
-      #     config.error_mode = :code
-      #   end
-      def configure_validation
-        self.validation_config ||= Configuration.new
-        yield(validation_config)
-      end
-    end
-
     def self.included(base)
-      super
-      # Set up the validation hooks after all modules are included
-      # Use class_eval to ensure we're in the right context
-      base.class_eval do
-        # Register both validate_params! and validate! hooks
-        # Parameter validations run first, then custom validate! hook
-        before :validate_params! if respond_to?(:before)
-        before :validate! if respond_to?(:before)
-
-        # Set up inherited hook to ensure child classes also get the before hooks
-        def self.inherited(subclass)
-          super
-          subclass.before :validate_params! if subclass.respond_to?(:before)
-          subclass.before :validate! if subclass.respond_to?(:before)
-          # Also prepend InstanceMethodsOverride to child classes
-          subclass.prepend(Interactor::Validation::Validates::InstanceMethodsOverride)
-        end
-      end
+      base.include Params
+      base.include Validates
+      base.before :validate! if base.respond_to?(:before)
     end
   end
 end

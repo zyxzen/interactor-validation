@@ -8,8 +8,8 @@ Gem::Specification.new do |spec|
   spec.authors = ["Wilson Anciro"]
   spec.email = ["konekred@gmail.com"]
 
-  spec.summary = "Parameter declaration and validation for Interactor gem"
-  spec.description = "Adds Rails-style parameter declaration and validation to Interactor contexts with support for presence, format, length, inclusion, and numericality validations."
+  spec.summary = "Minimal parameter validation for Interactor"
+  spec.description = "Lightweight, zero-dependency validation for Interactor service objects. Supports presence, format, length, inclusion, numericality, and nested validations."
   spec.homepage = "https://github.com/zyxzen/interactor-validation"
   spec.license = "MIT"
   spec.required_ruby_version = ">= 3.2.0"
@@ -31,8 +31,6 @@ Gem::Specification.new do |spec|
   spec.require_paths = ["lib"]
 
   # Runtime dependencies
-  spec.add_dependency "activemodel", ">= 6.0", "< 9.0"
-  spec.add_dependency "activesupport", ">= 6.0", "< 9.0"
   spec.add_dependency "interactor", "~> 3.0"
 
   # Development dependencies
