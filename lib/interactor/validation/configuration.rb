@@ -5,7 +5,8 @@ module Interactor
     # Configuration class for interactor validation behavior
     class Configuration
       attr_accessor :halt, :regex_timeout, :max_array_size,
-                    :enable_instrumentation, :cache_regex_patterns
+                    :enable_instrumentation, :cache_regex_patterns,
+                    :skip_validate
       attr_reader :error_mode
 
       # Backward compatibility alias for halt_on_first_error
@@ -22,6 +23,7 @@ module Interactor
         @max_array_size = 1000 # Maximum array size for nested validation (memory protection)
         @enable_instrumentation = false # ActiveSupport::Notifications instrumentation
         @cache_regex_patterns = true # Cache compiled regex patterns for performance
+        @skip_validate = true # Skip validate! hook if validate_params! has errors
       end
 
       def error_mode=(mode)

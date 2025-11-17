@@ -146,8 +146,11 @@ module Interactor
             { attribute: error.attribute, type: :invalid, options: {} }
           end
 
-          # Skip custom validations if halt was requested
-          unless @halt_validation
+          # Skip custom validations if configured to skip when param errors exist
+          skip_custom_validation = current_config.skip_validate && existing_error_details.any?
+
+          # Skip custom validations if halt was requested or if configured to skip on param errors
+          unless @halt_validation || skip_custom_validation
             # Call super to allow class's validate! to run and add custom errors
             # Rescue exceptions that might be raised
             begin
@@ -245,7 +248,14 @@ module Interactor
       # Get the current configuration (instance config overrides global config)
       # @return [Configuration] the active configuration
       def current_config
-        @current_config || self.class.validation_config || Interactor::Validation.configuration
+        return @current_config if @current_config
+
+        # Try to get class-level config if available
+        if self.class.respond_to?(:validation_config)
+          self.class.validation_config || Interactor::Validation.configuration
+        else
+          Interactor::Validation.configuration
+        end
       end
 
       # Instrument a block of code if instrumentation is enabled

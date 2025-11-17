@@ -437,4 +437,91 @@ RSpec.describe Interactor::Validation, "configuration" do
       expect(result.errors).to include({ code: "MISSING_PARAM_IS_REQUIRED" })
     end
   end
+
+  describe "skip_validate option" do
+    it "has default value of true" do
+      config = Interactor::Validation.configuration
+      expect(config.skip_validate).to eq(true)
+    end
+
+    context "when true (default)" do
+      let(:interactor_class) do
+        Class.new do
+          include Interactor
+          include Interactor::Validation
+
+          params :username, :email
+
+          validates :username, presence: true
+          validates :email, presence: true
+
+          configure_validation do |config|
+            config.error_mode = :code
+            config.skip_validate = true
+          end
+
+          def validate!
+            super
+            # This should NOT be called if param validation fails
+            errors.add(:base, "CUSTOM_VALIDATION_RAN")
+          end
+        end
+      end
+
+      it "skips custom validate! when param validation fails" do
+        result = interactor_class.call(username: "", email: "")
+        expect(result).to be_failure
+        # Should only have param validation errors, not custom validation error
+        expect(result.errors).to include({ code: "USERNAME_IS_REQUIRED" })
+        expect(result.errors).not_to include({ code: "BASE_CUSTOM_VALIDATION_RAN" })
+      end
+
+      it "runs custom validate! when param validation passes" do
+        result = interactor_class.call(username: "john", email: "john@example.com")
+        expect(result).to be_failure
+        # Should have custom validation error since params are valid
+        expect(result.errors).to include({ code: "BASE_CUSTOM_VALIDATION_RAN" })
+      end
+    end
+
+    context "when false" do
+      let(:interactor_class) do
+        Class.new do
+          include Interactor
+          include Interactor::Validation
+
+          params :username, :email
+
+          validates :username, presence: true
+          validates :email, presence: true
+
+          configure_validation do |config|
+            config.error_mode = :code
+            config.skip_validate = false
+          end
+
+          def validate!
+            super
+            # This SHOULD be called even if param validation fails
+            errors.add(:base, "CUSTOM_VALIDATION_RAN")
+          end
+        end
+      end
+
+      it "runs custom validate! even when param validation fails" do
+        result = interactor_class.call(username: "", email: "")
+        expect(result).to be_failure
+        # Should have both param validation errors AND custom validation error
+        expect(result.errors).to include({ code: "USERNAME_IS_REQUIRED" })
+        expect(result.errors).to include({ code: "BASE_CUSTOM_VALIDATION_RAN" })
+      end
+
+      it "runs custom validate! when param validation passes" do
+        result = interactor_class.call(username: "john", email: "john@example.com")
+        expect(result).to be_failure
+        # Should have custom validation error
+        expect(result.errors).to include({ code: "BASE_CUSTOM_VALIDATION_RAN" })
+      end
+    end
+  end
 end
