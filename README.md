@@ -30,6 +30,9 @@ Structured, lightweight parameter validation designed specifically for [Interact
 - [Parameter Delegation](#parameter-delegation)
 - [Requirements](#requirements)
 - [Design Philosophy](#design-philosophy)
+- [Development](#development)
+- [Contributing](#contributing)
+- [License](#license)
 
 ## Installation
 
@@ -239,7 +242,7 @@ result.errors
 
 ## Custom Validations
 
-Override `validate!` for custom business logic:
+Override `validate!` for custom business logic that requires external dependencies (database queries, API calls, etc.):
 
 ```ruby
 class CreateOrder
@@ -253,6 +256,9 @@ class CreateOrder
   validates :user_id, presence: true
 
   def validate!
+    # Parameter validations have already run at this point
+    # No need to call super - there is no parent validate! method
+
     product = Product.find_by(id: product_id)
     if product.nil?
       errors.add(:product_id, :not_found, message: "Product not found")
@@ -267,9 +273,41 @@ class CreateOrder
 end
 ```
 
+**Important:** Parameter validations (defined via `validates`) run automatically before `validate!`. You should never call `super` in your `validate!` method as there is no parent implementation.
+
 ## Configuration
 
-Configure global validation behavior in an initializer or before your interactors are loaded:
+Configuration can be set at three levels (in order of precedence):
+
+### 1. Per-Interactor Configuration
+
+Configure individual interactors using either a `configure` block or dedicated methods:
+
+```ruby
+class CreateUser
+  include Interactor
+  include Interactor::Validation
+
+  # Option 1: Using configure block
+  configure do |config|
+    config.halt = true
+    config.mode = :code
+  end
+
+  # Option 2: Using dedicated methods
+  validation_halt true
+  validation_mode :code
+  validation_skip_validate false
+
+  # ... validations and call method
+end
+```
+
+Configuration is inherited from parent classes and can be overridden in child classes.
+
+### 2. Global Configuration
+
+Configure global defaults in an initializer or before your interactors are loaded:
 
 ```ruby
 Interactor::Validation.configure do |config|
@@ -425,10 +463,46 @@ While ActiveModel::Validations is powerful, it's designed for ActiveRecord model
 
 ## Development
 
+### Setup
+
 ```bash
 bundle install
-bundle exec rspec       # Run tests
-bundle exec rubocop     # Lint code
+```
+
+### Running Tests
+
+```bash
+bundle exec rspec                                      # Run all tests
+bundle exec rspec spec/interactor/validation_spec.rb  # Run specific test file
+bundle exec rspec spec/interactor/validation_spec.rb:42  # Run specific test at line 42
+```
+
+### Linting
+
+```bash
+bundle exec rubocop     # Check code style
+bundle exec rubocop -a  # Auto-fix safe issues
+bundle exec rubocop -A  # Auto-fix all issues (use with caution)
+```
+
+### Combined (Default Rake Task)
+
+```bash
+bundle exec rake  # Runs both rspec and rubocop
+```
+
+### Interactive Console
+
+```bash
+bundle exec irb -r ./lib/interactor/validation  # Load gem in IRB
+```
+
+### Gem Management
+
+```bash
+bundle exec rake build     # Build gem file
+bundle exec rake install   # Install gem locally
+bundle exec rake release   # Release gem (requires permissions)
 ```
 
 ## Contributing
