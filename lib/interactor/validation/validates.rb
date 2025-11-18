@@ -11,27 +11,94 @@ require_relative "validators/array"
 
 module Interactor
   module Validation
+    # Exception raised when validation should halt on first error
+    class HaltValidation < StandardError; end
+
     module Validates
       def self.included(base)
         base.extend(ClassMethods)
         base.class_attribute :_validations
         base._validations = {}
+        base.class_attribute :_validation_config
+        base._validation_config = {}
         base.prepend(InstanceMethods)
       end
 
+      class ConfigurationProxy
+        def initialize(config_hash)
+          @config = config_hash
+        end
+
+        def mode=(value)
+          @config[:mode] = value
+        end
+
+        def halt=(value)
+          @config[:halt] = value
+        end
+
+        def skip_validate=(value)
+          @config[:skip_validate] = value
+        end
+      end
+
       module ClassMethods
-        def validates(param_name, **rules, &block)
-          self._validations ||= {}
+        def inherited(subclass)
+          super
+          # Ensure child class gets its own copy of config, merging with parent's config
+          subclass._validation_config = _validation_config.dup
+          # Ensure child class gets its own copy of validations
+          subclass._validations = _validations.dup
+        end
+
+        def validates(param_name, **rules, &)
+          # Ensure we have our own copy of validations when first modifying
+          begin
+            self._validations = _validations.dup if _validations.equal?(superclass._validations)
+          rescue StandardError
+            false
+          end
           _validations[param_name] ||= {}
           _validations[param_name].merge!(rules)
-          _validations[param_name][:_nested] = build_nested_rules(&block) if block_given?
+          _validations[param_name][:_nested] = build_nested_rules(&) if block_given?
+        end
+
+        def configure
+          # Ensure we have our own copy of config before modifying
+          begin
+            self._validation_config = _validation_config.dup if _validation_config.equal?(superclass._validation_config)
+          rescue StandardError
+            false
+          end
+          config = ConfigurationProxy.new(_validation_config)
+          yield(config)
+        end
+
+        def validation_halt(value)
+          # Ensure we have our own copy of config before modifying
+          begin
+            self._validation_config = _validation_config.dup if _validation_config.equal?(superclass._validation_config)
+          rescue StandardError
+            false
+          end
+          _validation_config[:halt] = value
+        end
+
+        def validation_mode(value)
+          # Ensure we have our own copy of config before modifying
+          begin
+            self._validation_config = _validation_config.dup if _validation_config.equal?(superclass._validation_config)
+          rescue StandardError
+            false
+          end
+          _validation_config[:mode] = value
         end
 
         private
 
-        def build_nested_rules(&block)
+        def build_nested_rules(&)
           builder = NestedBuilder.new
-          builder.instance_eval(&block)
+          builder.instance_eval(&)
           builder.rules
         end
       end
@@ -48,19 +115,8 @@ module Interactor
         end
       end
 
-      # Base module with default validate! that does nothing
-      module BaseValidation
-        def validate!
-          # Default implementation - does nothing
-          # Subclasses can override and call super
-        end
-      end
-
       module InstanceMethods
         def self.prepended(base)
-          # Include BaseValidation so super works in user's validate!
-          base.include(BaseValidation) unless base.ancestors.include?(BaseValidation)
-
           # Include all validator modules
           base.include(Validators::Presence)
           base.include(Validators::Numeric)
@@ -73,29 +129,28 @@ module Interactor
         end
 
         def errors
-          @errors ||= Errors.new
+          @errors ||= Errors.new(halt_checker: -> { validation_config(:halt) })
         end
 
-        def validate!
-          # Clear errors at the start
-          errors.clear
+        def run_validations!
+          param_errors = false
 
-          # Run parameter validations first
-          if self.class._validations
-            self.class._validations.each do |param, rules|
-              value = context.respond_to?(param) ? context.public_send(param) : nil
-              validate_param(param, value, rules)
-
-              # Halt on first error if configured
-              if Interactor::Validation.configuration.halt && errors.any?
-                context.fail!(errors: format_errors)
-                return
+          begin
+            # Run parameter validations
+            if self.class._validations
+              self.class._validations.each do |param, rules|
+                value = context.respond_to?(param) ? context.public_send(param) : nil
+                validate_param(param, value, rules)
               end
+              param_errors = errors.any?
             end
-          end
 
-          # Call super to allow user-defined validate! to run
-          super
+            # Run custom validations if defined
+            # Skip if param validations failed and skip_validate is true
+            validate! if respond_to?(:validate!, true) && !(param_errors && validation_config(:skip_validate))
+          rescue HaltValidation
+            # Validation halted on first error - fall through to fail context
+          end
 
           # Fail context if any errors exist
           context.fail!(errors: format_errors) if errors.any?
@@ -119,8 +174,7 @@ module Interactor
           validate_format(param, value, rules[:format]) if rules[:format]
           validate_length(param, value, rules[:length]) if rules[:length]
           validate_inclusion(param, value, rules[:inclusion]) if rules[:inclusion]
-          validate_numeric(param, value, rules[:numeric]) if rules[:numeric]
-          validate_numeric(param, value, rules[:numericality]) if rules[:numericality]
+          validate_numeric(param, value, rules[:numeric] || rules[:numericality]) if rules[:numeric] || rules[:numericality]
         end
 
         def validate_nested(param, value, nested_rules)
@@ -131,8 +185,13 @@ module Interactor
           end
         end
 
+        def validation_config(key)
+          # Check per-interactor config first, then fall back to global config
+          self.class._validation_config.key?(key) ? self.class._validation_config[key] : Interactor::Validation.configuration.public_send(key)
+        end
+
         def format_errors
-          case Interactor::Validation.configuration.mode
+          case validation_config(:mode)
           when :code
             format_errors_as_code
           else
@@ -160,15 +219,12 @@ module Interactor
           # Convert attribute to uppercase with underscores
           # Handle nested attributes: user.email → USER_EMAIL, items[0].name → ITEMS[0]_NAME
           code_attribute = attribute.to_s
-            .gsub(/\[(\d+)\]\./, '[\\1]_')    # items[0].name → items[0]_name (bracket before dot)
-            .gsub(".", "_")                    # user.email → user_email
-            .upcase                            # → ITEMS[0]_NAME
+                                    .gsub(/\[(\d+)\]\./, '[\\1]_')
+                                    .gsub(".", "_")
+                                    .upcase
 
-          # Convert type to uppercase: blank → BLANK, invalid → INVALID
-          code_type = type.to_s.upcase
-
-          # For blank errors, use more semantic "IS_REQUIRED"
-          code_type = "IS_REQUIRED" if type == :blank
+          # Use "IS_REQUIRED" for blank errors, otherwise use type name
+          code_type = type == :blank ? "IS_REQUIRED" : type.to_s.upcase
 
           "#{code_attribute}_#{code_type}"
         end

@@ -31,6 +31,13 @@ Metrics/ModuleLength:
 
 Metrics/PerceivedComplexity:
   Max: 12
+  Exclude:
+    - 'lib/interactor/validation/validates.rb' # validate_param method is intentionally complex
+    - 'lib/interactor/validation/validators/hash.rb' # validate_nested_attribute method is intentionally complex
+
+Lint/NonLocalExitFromIterator:
+  Exclude:
+    - 'lib/interactor/validation/validates.rb' # Early return in iterator for halt behavior
 
 Layout/LineLength:
   Max: 200

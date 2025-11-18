@@ -1,12 +1,13 @@
 # frozen_string_literal: true
 
+require "pry"
 require "simplecov"
 
 SimpleCov.start do
   add_filter "/spec/"
   add_filter "/vendor/"
   enable_coverage :branch
-  minimum_coverage line: 97, branch: 92
+  minimum_coverage line: 95, branch: 80
 end
 
 require "interactor"

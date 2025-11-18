@@ -11,7 +11,6 @@ module Interactor
 
       module ClassMethods
         def params(*param_names)
-          self._declared_params ||= []
           param_names.each do |param_name|
             _declared_params << param_name unless _declared_params.include?(param_name)
             delegate param_name, to: :context
