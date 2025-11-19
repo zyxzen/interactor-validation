@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    interactor-validation (0.4.0)
+    interactor-validation (0.4.1)
       interactor (~> 3.0)
 
 GEM
